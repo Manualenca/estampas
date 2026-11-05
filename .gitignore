@@ -1,0 +1,21 @@
+# Datos locales
+db.sqlite3
+*.sqlite3
+.env
+media/
+staticfiles/
+
+# Python
+__pycache__/
+*.pyc
+
+# Datos personales de pedidos anteriores
+modelos_docx/
+relevamiento*.md
+oraciones_revision.md
+
+# Fuentes comerciales: no se pueden redistribuir
+fuentes/
+
+# Archivos temporales de Word
+~$*
