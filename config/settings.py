@@ -82,12 +82,22 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+DB_PATH = os.environ.get('DB_PATH')
+if not DB_PATH:
+    raise ImproperlyConfigured('Falta DB_PATH: creá el archivo .env (ver README.md).')
+DB_PATH = Path(DB_PATH)
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': DB_PATH,
     }
 }
+
+BACKUP_DIR = DB_PATH.parent / 'backups'
+BACKUPS_A_CONSERVAR = 30
+
+MODELOS_DOCX_DIR = BASE_DIR / 'modelos_docx'
 
 
 # Password validation

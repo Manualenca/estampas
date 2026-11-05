@@ -9,25 +9,27 @@ Sistema local para gestionar e imprimir estampas personalizadas de Bautismo, Pri
 
 ## Instalación
 
-El entorno virtual va en `%USERPROFILE%\.virtualenvs\estampas`, fuera de OneDrive, para que no se sincronicen sus miles de archivos. Desde la carpeta del proyecto, en PowerShell:
+El entorno virtual va en `%USERPROFILE%\.virtualenvs\estampas` y la base en `C:\EstampasDatos`, ambos fuera de OneDrive. Desde la carpeta del proyecto, en PowerShell:
 
 ```powershell
 python -m venv "$env:USERPROFILE\.virtualenvs\estampas"
 & "$env:USERPROFILE\.virtualenvs\estampas\Scripts\Activate.ps1"
 python -m pip install -r requirements.txt
+New-Item -ItemType Directory -Force C:\EstampasDatos
 ```
 
-Si `.env` no existe, crealo con una clave nueva:
+Si `.env` no existe, crealo a partir de `.env.example` con una clave nueva:
 
 ```powershell
-python -c "from django.core.management.utils import get_random_secret_key as g; open('.env','w',newline=chr(10)).write('SECRET_KEY=' + chr(39) + g() + chr(39) + chr(10))"
+python -c "from pathlib import Path as P; from django.core.management.utils import get_random_secret_key as g; P('.env').write_text(P('.env.example').read_text(encoding='utf-8').replace('poner-aca-una-clave-larga-y-aleatoria', g()), encoding='utf-8')"
 ```
 
-Después creá las tablas y tu usuario:
+Después creá las tablas, tu usuario y cargá los modelos:
 
 ```powershell
 python manage.py migrate
 python manage.py createsuperuser
+python manage.py importar_modelos
 ```
 
 ## Uso
@@ -37,7 +39,25 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-El sistema queda en http://127.0.0.1:8001/admin/. Usa el puerto 8001 por defecto porque el 8000 lo ocupa otro sistema.
+El sistema queda en <http://127.0.0.1:8001/admin/>. Usa el puerto 8001 por defecto porque el 8000 lo ocupa otro sistema.
+
+## Importar modelos
+
+| Comando | Qué hace |
+|---|---|
+| `python manage.py importar_modelos` | Recorre `modelos_docx/` (con subcarpetas) e importa lo que todavía no está en la base. |
+| `python manage.py importar_modelos "ruta\Tarj2059.docx"` | Importa solo ese archivo. |
+| `python manage.py importar_modelos --actualizar` | Actualiza los cuadros de lo ya importado. Conserva la calibración, las imágenes de fondo, los colores por género y los roles corregidos a mano. |
+
+Al terminar muestra un resumen. Los cuadros marcados "sin asignar" se corrigen desde el admin y no se imprimen hasta tener un rol.
+
+## Copias de seguridad
+
+```powershell
+python manage.py backup_db
+```
+
+Copia la base a `C:\EstampasDatos\backups\` con fecha y hora en el nombre, y conserva las últimas 30 copias.
 
 ## Pruebas
 

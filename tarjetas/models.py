@@ -493,7 +493,7 @@ class PlantillaTexto(models.Model):
             "Una línea por renglón. Variables: {posesivo} {Posesivo} {sacramentos} {fecha} {hora} "
             "{articulo} {parroquia} {localidad} {padrino} {madrina} {padre} {madre} "
             "{linea_padrinos} {linea_padres} {linea_nacimiento} {fecha_nacimiento} "
-            "{bautizado}. Una línea cuyas variables queden vacías no se imprime."
+            "{bautizado} {anio}. Una línea cuyas variables queden vacías no se imprime."
         ),
     )
 
