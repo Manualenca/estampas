@@ -5,24 +5,51 @@
   <h1>Pedidos</h1>
   <a class="boton principal" href="{% url 'pedido_nuevo' %}">Nuevo pedido</a>
 </div>
-{% if pedidos %}
-<table class="tabla">
-  <thead>
-    <tr><th>Factura</th><th>SAPP</th><th>Entrega</th><th>Estado</th><th>Estampas</th></tr>
-  </thead>
-  <tbody>
-    {% for pedido in pedidos %}
-    <tr>
-      <td><a href="{% url 'pedido_detalle' pedido.pk %}">{{ pedido.numero_factura }}</a></td>
-      <td>{{ pedido.numero_sapp }}</td>
-      <td>{{ pedido.fecha_entrega|date:"d/m/Y" }}</td>
-      <td>{{ pedido.get_estado_display }}</td>
-      <td>{{ pedido.cantidad_estampas }}</td>
-    </tr>
+
+<form method="get" class="filtros">
+  <label class="campo buscar"><span>{{ filtro.q.label }}</span>{{ filtro.q }}</label>
+  <label class="campo"><span>{{ filtro.desde.label }}</span>{{ filtro.desde }}</label>
+  <label class="campo"><span>{{ filtro.hasta.label }}</span>{{ filtro.hasta }}</label>
+  <div class="acciones">
+    <button type="submit" class="boton principal">Filtrar</button>
+    {% if hay_filtro %}<a class="boton" href="{% url 'inicio' %}">Limpiar</a>{% endif %}
+  </div>
+  {{ filtro.errors }}
+</form>
+
+<section class="contador">
+  <a href="?mes={{ mes_anterior }}" class="boton" aria-label="Mes anterior">‹</a>
+  <strong>Entregas de {{ mes|date:"F Y" }}:</strong>
+  {% for etiqueta, cantidad in contador %}<span class="cifra">{{ etiqueta }}: <b>{{ cantidad }}</b></span>{% endfor %}
+  <span class="cifra">Total: <b>{{ total_mes }}</b></span>
+  <a href="?mes={{ mes_siguiente }}" class="boton" aria-label="Mes siguiente">›</a>
+</section>
+
+<p class="nota leyenda">
+  <span class="muestra vence"></span> vence en los próximos {{ dias_de_aviso }} días
+  <span class="muestra atrasado"></span> atrasado (sin enviar)
+  {% if hay_filtro %}· {{ total }} pedido{{ total|pluralize }} con el filtro{% endif %}
+</p>
+
+<div class="columnas">
+  {% for columna in columnas %}
+  <section class="columna estado-{{ columna.estado.value }}">
+    <h2>{{ columna.estado.label }} <span class="cantidad">{{ columna.pedidos|length }}</span></h2>
+    {% if columna.atrasados or columna.por_vencer %}
+      <p class="nota">{% if columna.atrasados %}<span class="atrasado-texto">{{ columna.atrasados }} atrasado{{ columna.atrasados|pluralize }}</span>{% endif %}
+        {% if columna.por_vencer %}<span class="vence-texto">{{ columna.por_vencer }} por vencer</span>{% endif %}</p>
+    {% endif %}
+    {% for pedido in columna.pedidos %}
+      <a class="tarjeta-pedido {{ pedido.alerta }}" href="{% url 'pedido_detalle' pedido.pk %}">
+        <span class="fila-pedido"><strong>Factura {{ pedido.numero_factura }}</strong><span>{{ pedido.fecha_entrega|date:"d/m/Y" }}</span></span>
+        <span class="fila-pedido nota"><span>SAPP {{ pedido.numero_sapp }} · {{ pedido.cantidad_estampas }} estampa{{ pedido.cantidad_estampas|pluralize }}</span>
+          {% if pedido.alerta == "atrasado" %}<span>Atrasado</span>{% elif pedido.alerta == "vence" %}<span>{% if pedido.fecha_entrega == hoy %}Vence hoy{% else %}Vence pronto{% endif %}</span>{% endif %}</span>
+        {% if pedido.ultimo_cambio %}<span class="nota">Último cambio: {{ pedido.ultimo_cambio|date:"d/m/Y H:i" }}</span>{% endif %}
+      </a>
+    {% empty %}
+      <p class="vacio">Sin pedidos.</p>
     {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p class="vacio">Todavía no hay pedidos.</p>
-{% endif %}
+  </section>
+  {% endfor %}
+</div>
 {% endblock %}

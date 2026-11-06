@@ -57,7 +57,7 @@ legend { font-weight: 600; padding: 0 .4rem; }
 .campo.ancho { grid-column: span 2; }
 .campo.casilla { flex-direction: row; align-items: center; gap: .4rem; }
 .campo ul, .radios ul { list-style: none; padding: 0; margin: 0; display: flex; gap: 1rem; flex-wrap: wrap; }
-input[type=text], input[type=number], input[type=date], input[type=time], select, textarea {
+input[type=text], input[type=search], input[type=number], input[type=date], input[type=time], select, textarea {
   font: inherit; padding: .35rem .45rem; border: 1px solid var(--borde); border-radius: 4px; background: #fff; width: 100%;
 }
 input[type=number] { width: 6rem; }
@@ -90,6 +90,35 @@ textarea { resize: vertical; }
 .con-contorno .cuadro.rol-sin_asignar { outline-color: #888; }
 .cuadro.desborda { outline: 2px solid var(--peligro); }
 .con-contorno .cuadro.desborda::before { background: var(--peligro); }
+/* Pantalla principal */
+.filtros { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; background: #fff; border: 1px solid var(--borde); border-radius: 6px; padding: .6rem .8rem; }
+.filtros .campo.buscar { flex: 1 1 18rem; }
+.filtros .acciones { margin-top: 0; }
+.contador { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin: .75rem 0; }
+.contador .cifra { color: var(--suave); }
+.contador .cifra b { color: var(--tinta); }
+.leyenda { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.muestra { display: inline-block; width: .9rem; height: .9rem; border-radius: 2px; vertical-align: middle; }
+.muestra.vence { background: #fff1b8; border: 1px solid #d9a400; }
+.muestra.atrasado { background: #fbd5d1; border: 1px solid var(--peligro); }
+.columnas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; align-items: start; }
+@media (max-width: 900px) { .columnas { grid-template-columns: 1fr; } }
+.columna { background: #fff; border: 1px solid var(--borde); border-radius: 6px; padding: .5rem .75rem .75rem; }
+.columna h2 { margin: .25rem 0 .5rem; display: flex; justify-content: space-between; align-items: center; }
+.columna .cantidad { font-size: .85rem; background: #eee6d3; border-radius: 10px; padding: 0 .55rem; }
+.tarjeta-pedido { display: flex; flex-direction: column; gap: .1rem; padding: .45rem .6rem; margin-bottom: .45rem; border: 1px solid var(--borde); border-left-width: 4px; border-radius: 4px; color: var(--tinta); text-decoration: none; }
+.tarjeta-pedido:hover { border-color: var(--acento); }
+.tarjeta-pedido.vence { background: #fff8d9; border-left-color: #d9a400; }
+.tarjeta-pedido.atrasado { background: #fde7e4; border-left-color: var(--peligro); }
+.fila-pedido { display: flex; justify-content: space-between; gap: .5rem; }
+.atrasado-texto { color: var(--peligro); margin-right: .5rem; }
+.vence-texto { color: #8a6a00; }
+.etiqueta.aviso { background: #fff1b8; }
+.filtro-calibracion { display: flex; gap: .5rem; flex-wrap: wrap; margin: .5rem 0 1rem; }
+.calibracion-probada { color: #1e7b34; font-weight: 600; }
+.calibracion-sin_probar { color: #8a6a00; font-weight: 600; }
+.calibracion-sin_calibrar { color: var(--peligro); }
+.probado { margin-top: .75rem; }
 .aviso-impresion { background: #e6eef8; border-left: 4px solid #1a73e8; padding: .55rem .8rem; }
 .bloque { background: #fff; border: 1px solid var(--borde); border-radius: 6px; padding: .5rem 1rem 1rem; margin: 1rem 0; }
 .bloque h2 { margin-top: .5rem; }

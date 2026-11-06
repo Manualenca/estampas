@@ -1,20 +1,31 @@
 {% extends "tarjetas/base.html" %}
 {% block titulo %}Modelos · Estampas{% endblock %}
 {% block contenido %}
-<h1>Modelos</h1>
+<h1>Modelos y calibración</h1>
+<p class="nota">Un modelo queda calibrado cuando imprimiste su hoja de prueba con el ajuste cargado y marcaste «Probado en impresora».
+  Si cambiás el ajuste, vuelve a «falta probar».</p>
+<nav class="filtro-calibracion">
+  <a class="boton{% if not elegido %} principal{% endif %}" href="{% url 'modelos' %}">Todos</a>
+  {% for estado, cantidad in resumen %}
+    <a class="boton{% if elegido == estado.value %} principal{% endif %}" href="?calibracion={{ estado.value }}">{{ estado.label }} ({{ cantidad }})</a>
+  {% endfor %}
+</nav>
 <table class="tabla">
-  <thead><tr><th>Código</th><th>Tipo</th><th>Tamaño (mm)</th><th>Variantes</th><th>Ajuste anverso</th><th>Ajuste reverso</th><th></th></tr></thead>
+  <thead><tr><th>Código</th><th>Tipo</th><th>Tamaño (mm)</th><th>Calibración</th><th>Ajuste anverso X / Y</th><th>Ajuste reverso X / Y</th><th></th></tr></thead>
   <tbody>
     {% for modelo in modelos %}
     <tr>
       <td>{{ modelo.codigo }}</td>
       <td>{{ modelo.get_tipo_display }}</td>
       <td>{{ modelo.ancho_mm|floatformat:"-1" }} × {{ modelo.alto_mm|floatformat:"-1" }}</td>
-      <td>{{ modelo.cantidad_variantes }}</td>
+      <td><span class="calibracion-{{ modelo.estado_calibracion }}">{{ modelo.estado_calibracion.label }}</span>
+        {% if modelo.calibracion_probada_el %}<span class="nota">· {{ modelo.calibracion_probada_el|date:"d/m/Y" }}</span>{% endif %}</td>
       <td>{{ modelo.offset_x|floatformat:"-2" }} / {{ modelo.offset_y|floatformat:"-2" }}</td>
       <td>{{ modelo.offset_x_reverso|floatformat:"-2" }} / {{ modelo.offset_y_reverso|floatformat:"-2" }}</td>
       <td><a href="{% url 'calibracion' modelo.pk %}">Calibrar</a></td>
     </tr>
+    {% empty %}
+    <tr><td colspan="7" class="vacio">Ningún modelo en este estado.</td></tr>
     {% endfor %}
   </tbody>
 </table>

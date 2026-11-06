@@ -39,6 +39,10 @@
         <label class="campo"><span>{{ form.offset_y_reverso.label }}</span>{{ form.offset_y_reverso }}{{ form.offset_y_reverso.errors }}</label>
       </fieldset>
     </div>
+    <label class="casilla-linea probado">{{ form.calibracion_probada }} {{ form.calibracion_probada.label }}</label>
+    <p class="nota">Estado actual: <span class="calibracion-{{ modelo.estado_calibracion }}">{{ modelo.estado_calibracion.label }}</span>
+      {% if modelo.calibracion_probada_el %}({{ modelo.calibracion_probada_el|date:"d/m/Y H:i" }}){% endif %}.
+      Si cambiás el ajuste sin marcar la casilla, queda como «falta probar».</p>
     <div class="acciones">
       <button type="submit" class="boton principal">Guardar calibración</button>
     </div>

@@ -156,6 +156,19 @@ class ModeloTarjeta(models.Model):
     offset_y_reverso = models.DecimalField(
         "ajuste Y reverso (mm)", max_digits=5, decimal_places=2, default=0
     )
+    calibracion_probada = models.BooleanField(
+        "calibración probada en impresora",
+        default=False,
+        help_text="Se imprimió la hoja de prueba con este ajuste y coincide con la tarjeta.",
+    )
+    calibracion_probada_el = models.DateTimeField("probada el", null=True, blank=True)
+
+    CAMPOS_AJUSTE = ("offset_x", "offset_y", "offset_x_reverso", "offset_y_reverso")
+
+    class EstadoCalibracion(models.TextChoices):
+        PROBADA = "probada", "Probada en impresora"
+        SIN_PROBAR = "sin_probar", "Ajuste cargado, falta probar"
+        SIN_CALIBRAR = "sin_calibrar", "Sin calibrar"
 
     class Meta:
         ordering = ["tipo", "codigo"]
@@ -164,6 +177,18 @@ class ModeloTarjeta(models.Model):
 
     def __str__(self):
         return self.codigo
+
+    @property
+    def tiene_ajuste(self):
+        return any(getattr(self, campo) for campo in self.CAMPOS_AJUSTE)
+
+    @property
+    def estado_calibracion(self):
+        if self.calibracion_probada:
+            return self.EstadoCalibracion.PROBADA
+        if self.tiene_ajuste:
+            return self.EstadoCalibracion.SIN_PROBAR
+        return self.EstadoCalibracion.SIN_CALIBRAR
 
     def offset(self, pagina):
         """Ajuste de impresora (x, y) en mm para una página."""

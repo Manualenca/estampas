@@ -1,20 +1,22 @@
 import json
 import re
+from datetime import date, timedelta
 from decimal import ROUND_DOWN, Decimal, InvalidOperation
 
 from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Max, Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
+from django.utils import timezone
 from django.views.static import serve
 
 from . import fuentes
-from .forms import CalibracionForm, EstampaForm, NinoFormSet, PedidoForm
-from .models import AjusteCuadro, CuadroTexto, Estampa, ModeloTarjeta, Pedido
+from .forms import CalibracionForm, EstampaForm, FiltroPedidosForm, NinoFormSet, PedidoForm
+from .models import AjusteCuadro, CuadroTexto, Estampa, ModeloTarjeta, Nino, Pedido, normalizar_texto
 from .textos import ContextoEstampa, factor_linea, texto_de_cuadro, textos_de_estampa
 
 ALINEACION_CSS = {
@@ -42,11 +44,99 @@ def numero(valor):
 # ----- Pedidos -----
 
 
+DIAS_DE_AVISO = 3
+
+
+def alerta_de_entrega(pedido, hoy):
+    """'atrasado' o 'vence' (en los próximos días) para los pedidos que todavía no se enviaron."""
+    if pedido.estado == Pedido.Estado.ENVIADO:
+        return ""
+    if pedido.fecha_entrega < hoy:
+        return "atrasado"
+    if pedido.fecha_entrega <= hoy + timedelta(days=DIAS_DE_AVISO):
+        return "vence"
+    return ""
+
+
+def _mes_elegido(texto, hoy):
+    try:
+        anio, mes = (int(v) for v in (texto or "").split("-"))
+        return date(anio, mes, 1)
+    except ValueError:
+        return hoy.replace(day=1)
+
+
+def _mes_siguiente(primero):
+    return (primero.replace(day=28) + timedelta(days=4)).replace(day=1)
+
+
 def inicio(request):
-    pedidos = Pedido.objects.annotate(cantidad_estampas=Count("estampas")).order_by(
-        "fecha_entrega", "numero_factura"
+    hoy = timezone.localdate()
+    filtro = FiltroPedidosForm(request.GET or None)
+    busqueda, desde, hasta = "", None, None
+    if filtro.is_valid():
+        busqueda = filtro.cleaned_data["q"].strip()
+        desde, hasta = filtro.cleaned_data["desde"], filtro.cleaned_data["hasta"]
+
+    pedidos = Pedido.objects.annotate(
+        cantidad_estampas=Count("estampas", distinct=True),
+        ultimo_cambio=Max("historial__fecha_hora"),
+    ).order_by("fecha_entrega", "numero_factura")
+    if desde:
+        pedidos = pedidos.filter(fecha_entrega__gte=desde)
+    if hasta:
+        pedidos = pedidos.filter(fecha_entrega__lte=hasta)
+    if busqueda:
+        # Sin distinguir mayúsculas ni acentos: "maria" encuentra a "María".
+        clave = normalizar_texto(busqueda)
+        por_numero = Pedido.objects.filter(
+            Q(numero_factura__icontains=busqueda) | Q(numero_sapp__icontains=busqueda)
+        ).values_list("pk", flat=True)
+        por_nombre = [
+            pedido_id
+            for pedido_id, nombre in Nino.objects.values_list("pedido_id", "nombre")
+            if clave in normalizar_texto(nombre)
+        ]
+        pedidos = pedidos.filter(pk__in=set(por_numero) | set(por_nombre))
+
+    grupos = {estado: [] for estado in Pedido.Estado}
+    for pedido in pedidos:
+        pedido.alerta = alerta_de_entrega(pedido, hoy)
+        grupos[pedido.estado].append(pedido)
+    columnas = [
+        {
+            "estado": estado,
+            "pedidos": grupos[estado],
+            "atrasados": sum(1 for p in grupos[estado] if p.alerta == "atrasado"),
+            "por_vencer": sum(1 for p in grupos[estado] if p.alerta == "vence"),
+        }
+        for estado in Pedido.Estado
+    ]
+
+    mes = _mes_elegido(request.GET.get("mes"), hoy)
+    siguiente = _mes_siguiente(mes)
+    del_mes = Pedido.objects.filter(fecha_entrega__gte=mes, fecha_entrega__lt=siguiente)
+    conteo = {fila["estado"]: fila["cantidad"] for fila in del_mes.values("estado").annotate(cantidad=Count("pk"))}
+    contador = [(estado.label, conteo.get(estado.value, 0)) for estado in Pedido.Estado]
+    anterior = (mes - timedelta(days=1)).replace(day=1)
+
+    return render(
+        request,
+        "tarjetas/inicio.html",
+        {
+            "filtro": filtro,
+            "columnas": columnas,
+            "hay_filtro": bool(busqueda or desde or hasta),
+            "total": sum(len(c["pedidos"]) for c in columnas),
+            "mes": mes,
+            "mes_anterior": anterior.strftime("%Y-%m"),
+            "mes_siguiente": siguiente.strftime("%Y-%m"),
+            "contador": contador,
+            "total_mes": sum(c for _, c in contador),
+            "dias_de_aviso": DIAS_DE_AVISO,
+            "hoy": hoy,
+        },
     )
-    return render(request, "tarjetas/inicio.html", {"pedidos": pedidos})
 
 
 def pedido_detalle(request, pk):
@@ -60,7 +150,14 @@ def pedido_detalle(request, pk):
     return render(
         request,
         "tarjetas/pedido_detalle.html",
-        {"pedido": pedido, "estampas": estampas, "ninos": ninos},
+        {
+            "pedido": pedido,
+            "estampas": estampas,
+            "ninos": ninos,
+            "historial": pedido.historial.all(),
+            "alerta": alerta_de_entrega(pedido, timezone.localdate()),
+            "siguiente": SIGUIENTE_ESTADO.get(pedido.estado),
+        },
     )
 
 
@@ -484,8 +581,22 @@ def pedido_estado(request, pk):
 
 
 def modelos_lista(request):
-    modelos = ModeloTarjeta.objects.annotate(cantidad_variantes=Count("variantes")).order_by("tipo", "codigo")
-    return render(request, "tarjetas/modelos.html", {"modelos": modelos})
+    """Modelos con su estado de calibración, para ver cuáles faltan probar."""
+    modelos = list(
+        ModeloTarjeta.objects.annotate(cantidad_variantes=Count("variantes")).order_by("tipo", "codigo")
+    )
+    estados = ModeloTarjeta.EstadoCalibracion
+    resumen = [
+        (estado, sum(1 for m in modelos if m.estado_calibracion == estado)) for estado in estados
+    ]
+    elegido = request.GET.get("calibracion")
+    if elegido in estados.values:
+        modelos = [m for m in modelos if m.estado_calibracion == elegido]
+    return render(
+        request,
+        "tarjetas/modelos.html",
+        {"modelos": modelos, "resumen": resumen, "elegido": elegido},
+    )
 
 
 def calibracion(request, pk):

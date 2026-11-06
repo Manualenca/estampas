@@ -37,6 +37,12 @@ python manage.py copiar_fuentes
 
 ## Uso
 
+Doble clic en **Estampas** (el acceso directo del escritorio, o `Estampas.bat` en la carpeta del proyecto). Hace el backup si el último tiene más de 24 horas, levanta el servidor en una ventana minimizada y abre el navegador. Si el servidor ya está corriendo, solo abre el navegador. Para detener el sistema, cerrá la ventana «Estampas - servidor».
+
+Para volver a crear el acceso directo: `powershell -ExecutionPolicy Bypass -File scripts\crear_acceso_directo.ps1`.
+
+A mano, sin el lanzador:
+
 ```powershell
 & "$env:USERPROFILE\.virtualenvs\estampas\Scripts\Activate.ps1"
 python manage.py runserver
@@ -70,7 +76,13 @@ Para calibrar la impresora, en «Modelos y calibración» imprimí la hoja de pr
 python manage.py backup_db
 ```
 
-Copia la base a `C:\EstampasDatos\backups\` con fecha y hora en el nombre, y conserva las últimas 30 copias.
+Copia la base a `C:\EstampasDatos\backups\` con fecha y hora en el nombre, y conserva las últimas 30 copias. Cada backup queda anotado en `C:\EstampasDatos\backups\backups.log`. Con `--si-hace-falta` solo copia si el último tiene más de 24 horas (lo usa el lanzador).
+
+Para que se haga solo todos los días (a las 13:00, o apenas se prenda la PC si estaba apagada), creá la tarea del Programador de tareas una vez:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\crear_tarea_backup.ps1
+```
 
 ## Pruebas
 

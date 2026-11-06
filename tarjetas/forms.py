@@ -1,4 +1,5 @@
 from django import forms
+from django.utils import timezone
 from django.db.models import Q
 
 from .models import (
@@ -24,17 +25,44 @@ class PedidoForm(forms.ModelForm):
         widgets = {"fecha_entrega": FECHA, "observaciones": forms.Textarea(attrs={"rows": 3})}
 
 
+class FiltroPedidosForm(forms.Form):
+    q = forms.CharField(
+        required=False,
+        label="Buscar",
+        widget=forms.TextInput(attrs={"placeholder": "Factura, SAPP o nombre del chico", "type": "search"}),
+    )
+    desde = forms.DateField(required=False, label="Entrega desde", widget=FECHA)
+    hasta = forms.DateField(required=False, label="Entrega hasta", widget=FECHA)
+
+
 class CalibracionForm(forms.ModelForm):
     class Meta:
         model = ModeloTarjeta
-        fields = ["offset_x", "offset_y", "offset_x_reverso", "offset_y_reverso"]
+        fields = ["offset_x", "offset_y", "offset_x_reverso", "offset_y_reverso", "calibracion_probada"]
         labels = {
             "offset_x": "Anverso: corrimiento X (mm)",
             "offset_y": "Anverso: corrimiento Y (mm)",
             "offset_x_reverso": "Reverso: corrimiento X (mm)",
             "offset_y_reverso": "Reverso: corrimiento Y (mm)",
+            "calibracion_probada": "Probado en impresora: la hoja de prueba coincide con la tarjeta",
         }
-        widgets = {campo: forms.NumberInput(attrs={"step": "0.1"}) for campo in fields}
+        widgets = {
+            campo: forms.NumberInput(attrs={"step": "0.1"}) for campo in ModeloTarjeta.CAMPOS_AJUSTE
+        }
+
+    def save(self, commit=True):
+        modelo = super().save(commit=False)
+        cambio_el_ajuste = bool(set(self.changed_data) & set(ModeloTarjeta.CAMPOS_AJUSTE))
+        if cambio_el_ajuste and "calibracion_probada" not in self.changed_data:
+            # Un ajuste nuevo todavía no se probó, aunque el anterior sí.
+            modelo.calibracion_probada = False
+        if modelo.calibracion_probada and (cambio_el_ajuste or "calibracion_probada" in self.changed_data):
+            modelo.calibracion_probada_el = timezone.now()
+        if not modelo.calibracion_probada:
+            modelo.calibracion_probada_el = None
+        if commit:
+            modelo.save()
+        return modelo
 
 
 class DiplomaChoiceField(forms.ModelChoiceField):
