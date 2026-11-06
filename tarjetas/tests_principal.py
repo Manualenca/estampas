@@ -175,3 +175,43 @@ class LanzadorTests(TestCase):
         self.assertIn('set "ESTAMPAS_PUERTO=8001"', texto)
         self.assertIn(r"%USERPROFILE%\.virtualenvs\estampas", texto)
         self.assertIn("backup_db --si-hace-falta", texto)
+
+
+class CopiaExtraTests(TestCase):
+    def setUp(self):
+        self.carpeta = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.carpeta, ignore_errors=True)
+        self.principal = self.carpeta / "backups"
+        self.extra = self.carpeta / "onedrive"
+
+    def backup(self, extra):
+        salida, errores = StringIO(), StringIO()
+        with override_settings(BACKUP_DIR=self.principal, BACKUP_EXTRA_DIR=extra, BACKUPS_EXTRA_A_CONSERVAR=7):
+            call_command("backup_db", stdout=salida, stderr=errores)
+        return errores.getvalue()
+
+    def test_copia_y_conserva_las_ultimas_7(self):
+        self.extra.mkdir()
+        for i in range(8):
+            (self.extra / f"db_2020-01-0{i + 1}_000000.sqlite3").write_text("x")
+        (self.extra / "mio.txt").write_text("no tocar")
+        self.backup(self.extra)
+        copias = sorted(p.name for p in self.extra.glob("db_*.sqlite3"))
+        self.assertEqual(len(copias), 7)
+        self.assertNotIn("db_2020-01-01_000000.sqlite3", copias)
+        self.assertEqual(copias[-1], next(self.principal.glob("db_*.sqlite3")).name)
+        self.assertTrue((self.extra / "mio.txt").exists())
+        self.assertEqual(list(self.extra.glob("*.tmp")), [])
+
+    def test_si_la_carpeta_no_existe_registra_y_sigue(self):
+        errores = self.backup(self.carpeta / "no_existe")
+        self.assertEqual(len(list(self.principal.glob("db_*.sqlite3"))), 1)
+        registro = (self.principal / "backups.log").read_text(encoding="utf-8")
+        self.assertIn(" OK db_", registro)
+        self.assertIn("ERROR copia extra: la carpeta no existe", registro)
+        self.assertIn("No se pudo hacer la copia extra", errores)
+        self.assertFalse((self.carpeta / "no_existe").exists())
+
+    def test_sin_configurar_no_copia(self):
+        self.backup(None)
+        self.assertNotIn("copia extra", (self.principal / "backups.log").read_text(encoding="utf-8"))

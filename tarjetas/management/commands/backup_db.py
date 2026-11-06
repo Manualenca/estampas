@@ -1,3 +1,4 @@
+import shutil
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -50,6 +51,30 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(f"Backup creado: {archivo} ({conservadas} copias conservadas)")
         )
+        self._copia_extra(archivo, destino)
+
+    def _copia_extra(self, archivo, destino):
+        """Copia el backup a BACKUP_EXTRA_DIR. Si falla, lo registra sin cortar el principal."""
+        extra = settings.BACKUP_EXTRA_DIR
+        if not extra:
+            return
+        extra = Path(extra)
+        try:
+            if not extra.is_dir():
+                raise FileNotFoundError(f"la carpeta no existe: {extra}")
+            final = extra / archivo.name
+            temporal = final.with_suffix(".tmp")
+            shutil.copy2(archivo, temporal)
+            temporal.replace(final)  # Sin archivos a medio copiar en la carpeta sincronizada.
+            copias = sorted(extra.glob(PATRON), key=lambda p: p.name, reverse=True)
+            for vieja in copias[settings.BACKUPS_EXTRA_A_CONSERVAR :]:
+                vieja.unlink()
+        except Exception as error:  # noqa: BLE001 - la copia extra nunca corta el backup principal.
+            self._registrar(destino, f"ERROR copia extra: {error}")
+            self.stderr.write(self.style.WARNING(f"No se pudo hacer la copia extra: {error}"))
+            return
+        self._registrar(destino, f"OK copia extra {final}")
+        self.stdout.write(f"Copia extra: {final}")
 
     def _copiar(self, destino):
         archivo = destino / f"{PREFIJO}{datetime.now().strftime(FORMATO)}.sqlite3"

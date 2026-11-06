@@ -98,6 +98,10 @@ DATABASES = {
 BACKUP_DIR = DB_PATH.parent / 'backups'
 BACKUPS_A_CONSERVAR = 30
 
+# Copia extra del último backup (por ejemplo, en OneDrive personal). Vacío: no se copia.
+BACKUP_EXTRA_DIR = Path(os.environ['BACKUP_EXTRA_DIR']) if os.environ.get('BACKUP_EXTRA_DIR') else None
+BACKUPS_EXTRA_A_CONSERVAR = 7
+
 MODELOS_DOCX_DIR = BASE_DIR / 'modelos_docx'
 
 # Copias de las fuentes de los modelos (ver: manage.py copiar_fuentes).
