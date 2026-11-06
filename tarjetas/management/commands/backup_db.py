@@ -1,10 +1,12 @@
+import os
 import shutil
 import sqlite3
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
 from django.conf import settings
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand, CommandError, OutputWrapper
 from django.db import connection
 
 PREFIJO = "db_"
@@ -35,6 +37,11 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, si_hace_falta=False, **options):
+        # La tarea programada usa pythonw.exe, que no tiene consola: sin esto, el primer
+        # mensaje en pantalla corta el comando antes de la copia extra.
+        if sys.stdout is None or sys.stderr is None:
+            nada = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115 - dura lo que el proceso.
+            self.stdout, self.stderr = OutputWrapper(nada), OutputWrapper(nada)
         destino = Path(settings.BACKUP_DIR)
         destino.mkdir(parents=True, exist_ok=True)
         if si_hace_falta:

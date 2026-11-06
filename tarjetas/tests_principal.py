@@ -215,3 +215,22 @@ class CopiaExtraTests(TestCase):
     def test_sin_configurar_no_copia(self):
         self.backup(None)
         self.assertNotIn("copia extra", (self.principal / "backups.log").read_text(encoding="utf-8"))
+
+
+class BackupSinConsolaTests(TestCase):
+    """La tarea programada corre con pythonw.exe: sys.stdout y sys.stderr son None."""
+
+    def test_sin_consola_hace_la_copia_extra(self):
+        from unittest import mock
+
+        from .management.commands.backup_db import Command
+
+        carpeta = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, carpeta, ignore_errors=True)
+        extra = carpeta / "onedrive"
+        extra.mkdir()
+        with override_settings(BACKUP_DIR=carpeta / "backups", BACKUP_EXTRA_DIR=extra), \
+                mock.patch("sys.stdout", None), mock.patch("sys.stderr", None):
+            Command().handle(si_hace_falta=False)
+        self.assertEqual(len(list(extra.glob("db_*.sqlite3"))), 1)
+        self.assertIn("OK copia extra", (carpeta / "backups" / "backups.log").read_text(encoding="utf-8"))

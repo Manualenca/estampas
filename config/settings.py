@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -100,6 +101,9 @@ BACKUPS_A_CONSERVAR = 30
 
 # Copia extra del último backup (por ejemplo, en OneDrive personal). Vacío: no se copia.
 BACKUP_EXTRA_DIR = Path(os.environ['BACKUP_EXTRA_DIR']) if os.environ.get('BACKUP_EXTRA_DIR') else None
+# Las pruebas nunca copian a la carpeta extra real (y nunca borran sus backups).
+if 'test' in sys.argv[1:2]:
+    BACKUP_EXTRA_DIR = None
 BACKUPS_EXTRA_A_CONSERVAR = 7
 
 MODELOS_DOCX_DIR = BASE_DIR / 'modelos_docx'
