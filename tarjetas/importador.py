@@ -10,7 +10,7 @@ from django.conf import settings
 from django.db import transaction
 
 from . import datos_importacion as datos
-from .lector_docx import INSET_Y_MM, leer_docx, leer_parrafos_cuerpo
+from .lector_docx import INSET_Y_MM, Parrafo, leer_docx, leer_parrafos_cuerpo
 from .models import (
     CuadroTexto,
     EstiloLinea,
@@ -169,19 +169,45 @@ def _elemento_de_linea(texto, rol):
     return EstiloLinea.Elemento.TEXTO_FIJO
 
 
+def _formato_de_parrafo(parrafo, base):
+    """Alineación, espacios y sangrías del párrafo que difieren del primero del cuadro."""
+    alineacion = ALINEACIONES.get(parrafo.alineacion, CuadroTexto.Alineacion.IZQUIERDA)
+    datos = {}
+    if alineacion != ALINEACIONES.get(base.alineacion, CuadroTexto.Alineacion.IZQUIERDA):
+        datos["alineacion"] = alineacion
+    if parrafo.antes != base.antes:
+        datos["espacio_antes_pt"] = decimal(parrafo.antes)
+    if parrafo.despues != base.despues:
+        datos["espacio_despues_pt"] = decimal(parrafo.despues)
+    for campo, atributo in (
+        ("sangria_izquierda_mm", "sangria_izquierda"),
+        ("sangria_derecha_mm", "sangria_derecha"),
+        ("sangria_primera_mm", "sangria_primera"),
+    ):
+        if getattr(parrafo, atributo):
+            datos[campo] = decimal(getattr(parrafo, atributo))
+    return datos
+
+
 def _estilos_de_linea(cuadro, rol, principal):
-    """Partes del cuadro cuyo formato difiere del principal."""
+    """Partes del cuadro cuyo formato (de letra o de párrafo) difiere del principal."""
     if rol not in (Rol.CELEBRACION, Rol.ORACION):
         return []
+    visibles = [p for p in cuadro.parrafos if p.texto.strip()]
+    if not visibles:
+        return []
+    base = visibles[0]
     estilos = {}
-    for parrafo in cuadro.parrafos:
-        if not parrafo.texto.strip():
-            continue
+    for parrafo in visibles:
         elemento = _elemento_de_linea(parrafo.texto, rol)
         if elemento is None or elemento in estilos:
             continue
         propio = _dominante(parrafo.corridas)
-        if propio[:5] == principal[:5]:
+        formato = _formato_de_parrafo(parrafo, base) if parrafo is not base else {}
+        # Las sangrías del primer párrafo también cuentan: el cuadro no las guarda.
+        if parrafo is base:
+            formato = {k: v for k, v in _formato_de_parrafo(parrafo, Parrafo()).items() if k.startswith("sangria")}
+        if propio[:5] == principal[:5] and not formato:
             continue
         estilos[elemento] = EstiloLinea(
             elemento=elemento,
@@ -190,6 +216,7 @@ def _estilos_de_linea(cuadro, rol, principal):
             negrita=propio[2] if propio[2] != principal[2] else None,
             cursiva=propio[3] if propio[3] != principal[3] else None,
             color=propio[4] if propio[4] and propio[4] != principal[4] else "",
+            **formato,
         )
     return list(estilos.values())
 
@@ -497,6 +524,7 @@ class Importador:
             "interlineado": interlineado,
             "interlineado_minimo_pt": minimo,
             "espacio_despues_pt": decimal(parrafo.despues or 0),
+            "espacio_antes_pt": decimal(parrafo.antes or 0),
             "espaciado_letras_pt": decimal(principal[5] or 0),
             "rotacion": CuadroTexto.Rotacion.INVERTIDO if cuadro.invertido else CuadroTexto.Rotacion.NORMAL,
             "respeta_saltos": respeta,
@@ -605,3 +633,146 @@ class Importador:
         elegidos = fijos if fijos is not None else codigos
         oracion.sacramentos.add(*[self.sacramentos[c] for c in elegidos if c in self.sacramentos])
         return oracion
+
+
+# ----- Negrita por partes (importar_modelos --estilos) -----
+
+CLAVES_POR_ELEMENTO = {
+    EstiloLinea.Elemento.PADRINOS: [
+        PlantillaTexto.Clave.PADRINOS_AMBOS,
+        PlantillaTexto.Clave.PADRINOS_SOLO_PADRINO,
+        PlantillaTexto.Clave.PADRINOS_SOLO_MADRINA,
+    ],
+    EstiloLinea.Elemento.PADRES: [
+        PlantillaTexto.Clave.PADRES_AMBOS,
+        PlantillaTexto.Clave.PADRES_SOLO_PADRE,
+        PlantillaTexto.Clave.PADRES_SOLO_MADRE,
+    ],
+    EstiloLinea.Elemento.NACIMIENTO: [PlantillaTexto.Clave.NACIMIENTO],
+}
+
+
+@dataclass
+class EtiquetaEnNegrita:
+    """Etiqueta en negrita al comienzo de un renglón del .docx: "**Mi Madrina**: Eva"."""
+
+    palabras: int
+    con_dos_puntos: bool
+    texto_docx: str
+
+
+def etiqueta_en_negrita(parrafo):
+    """La etiqueta en negrita del comienzo del párrafo, completando palabras cortadas."""
+    corridas = [c for c in parrafo.corridas if c.texto]
+    if not corridas or not corridas[0].negrita:
+        return None
+    if len({bool(c.negrita) for c in corridas if c.texto.strip()}) < 2:
+        return None
+    texto = "".join(c.texto for c in corridas)
+    largo = 0
+    for corrida in corridas:
+        if not corrida.negrita:
+            break
+        largo += len(corrida.texto)
+    # "Mis Padrino" + "s:" -> se completa la palabra cortada: "Mis Padrinos".
+    while largo < len(texto) and texto[largo].isalpha():
+        largo += 1
+    negrita = texto[:largo].strip()
+    if not negrita:
+        return None
+    return EtiquetaEnNegrita(
+        palabras=len(negrita.rstrip(":").split()),
+        con_dos_puntos=negrita.endswith(":"),
+        texto_docx="".join(f"**{c.texto}**" if c.negrita else c.texto for c in corridas).strip(),
+    )
+
+
+def marcar_etiqueta(plantilla, etiqueta):
+    """Pone en negrita las primeras palabras del primer renglón de la plantilla."""
+    renglones = plantilla.split("\n")
+    primero = renglones[0]
+    if "**" in primero:
+        return plantilla
+    hallado = re.match(r"^(\s*(?:[^\s{]+\s+){%d})" % (etiqueta.palabras - 1) + r"([^\s{]+)", primero)
+    if not hallado:
+        return plantilla
+    etiqueta_texto = hallado.group(1) + hallado.group(2)
+    resto = primero[len(etiqueta_texto):]
+    if etiqueta_texto.endswith(":") and not etiqueta.con_dos_puntos:
+        etiqueta_texto, resto = etiqueta_texto[:-1], ":" + resto
+    renglones[0] = f"**{etiqueta_texto.strip()}**{resto}"
+    return "\n".join(renglones)
+
+
+@dataclass
+class CambioDeEstilo:
+    variante: str
+    plantilla: str
+    antes: str
+    despues: str
+    docx: str
+
+
+def aplicar_estilos(variante, ruta):
+    """Lleva a las plantillas de la variante la negrita por partes del .docx.
+
+    Devuelve (cambios, no_aplicadas). No toca plantillas que ya tengan marcas de negrita.
+    """
+    documento = leer_docx(ruta)
+    por_indice = {c.indice: c for c in documento.cuadros}
+    cambios, no_aplicadas = [], []
+    for cuadro in variante.cuadros.filter(rol=Rol.CELEBRACION):
+        original = por_indice.get(cuadro.indice_origen)
+        if original is None:
+            continue
+        for parrafo in original.parrafos:
+            etiqueta = etiqueta_en_negrita(parrafo)
+            if etiqueta is None:
+                if len({bool(c.negrita) for c in parrafo.corridas if c.texto.strip()}) > 1:
+                    no_aplicadas.append(f"{variante.archivo_origen}: {parrafo.texto.strip()!r}")
+                continue
+            elemento = _elemento_de_linea(parrafo.texto, Rol.CELEBRACION)
+            claves = CLAVES_POR_ELEMENTO.get(elemento)
+            if not claves:
+                no_aplicadas.append(f"{variante.archivo_origen}: {etiqueta.texto_docx!r}")
+                continue
+            for clave in claves:
+                cambios += _marcar_plantillas(variante, clave, etiqueta)
+            # El renglón queda sin negrita de base: la negrita va solo en la etiqueta.
+            estilo, _ = EstiloLinea.objects.get_or_create(cuadro=cuadro, elemento=elemento)
+            if estilo.negrita is not False:
+                estilo.negrita = False
+                estilo.save()
+    return cambios, no_aplicadas
+
+
+def _marcar_plantillas(variante, clave, etiqueta):
+    """Crea o actualiza, para la variante, la plantilla de cada caso general de esa clave."""
+    cambios = []
+    generales = PlantillaTexto.objects.filter(clave=clave, variante__isnull=True)
+    for general in generales:
+        propia, creada = PlantillaTexto.objects.get_or_create(
+            clave=clave,
+            sacramento=general.sacramento,
+            cantidad_ninos=general.cantidad_ninos,
+            variante=variante,
+            defaults={"texto": general.texto},
+        )
+        antes = propia.texto
+        despues = marcar_etiqueta(antes, etiqueta)
+        if despues == antes:
+            if creada:  # No se pudo marcar: no hace falta una copia igual a la general.
+                propia.delete()
+            continue
+        propia.texto = despues
+        propia.save()
+        cambios.append(
+            CambioDeEstilo(
+                variante=str(variante),
+                plantilla=str(propia),
+                antes=general.texto if creada else antes,
+                despues=despues,
+                docx=etiqueta.texto_docx,
+            )
+        )
+    return cambios

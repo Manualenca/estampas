@@ -366,6 +366,9 @@ class CuadroTexto(models.Model):
     espacio_despues_pt = models.DecimalField(
         "espacio tras cada párrafo (pt)", max_digits=5, decimal_places=2, default=0
     )
+    espacio_antes_pt = models.DecimalField(
+        "espacio antes de cada párrafo (pt)", max_digits=5, decimal_places=2, default=0
+    )
     espaciado_letras_pt = models.DecimalField(
         "espaciado entre letras (pt)", max_digits=5, decimal_places=2, default=0
     )
@@ -438,6 +441,29 @@ class EstiloLinea(models.Model):
     cursiva = models.BooleanField("cursiva", null=True, blank=True)
     color = models.CharField(
         "color", max_length=6, blank=True, validators=[validar_color]
+    )
+    alineacion = models.CharField(
+        "alineación", max_length=12, choices=CuadroTexto.Alineacion.choices, blank=True
+    )
+    espacio_antes_pt = models.DecimalField(
+        "espacio antes (pt)", max_digits=5, decimal_places=2, null=True, blank=True
+    )
+    espacio_despues_pt = models.DecimalField(
+        "espacio después (pt)", max_digits=5, decimal_places=2, null=True, blank=True
+    )
+    sangria_izquierda_mm = models.DecimalField(
+        "sangría izquierda (mm)", max_digits=5, decimal_places=2, null=True, blank=True
+    )
+    sangria_derecha_mm = models.DecimalField(
+        "sangría derecha (mm)", max_digits=5, decimal_places=2, null=True, blank=True
+    )
+    sangria_primera_mm = models.DecimalField(
+        "sangría de la primera línea (mm)",
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Respecto de la izquierda. Negativa: sangría francesa.",
     )
 
     class Meta:

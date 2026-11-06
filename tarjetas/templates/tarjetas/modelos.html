@@ -1,0 +1,21 @@
+{% extends "tarjetas/base.html" %}
+{% block titulo %}Modelos · Estampas{% endblock %}
+{% block contenido %}
+<h1>Modelos</h1>
+<table class="tabla">
+  <thead><tr><th>Código</th><th>Tipo</th><th>Tamaño (mm)</th><th>Variantes</th><th>Ajuste anverso</th><th>Ajuste reverso</th><th></th></tr></thead>
+  <tbody>
+    {% for modelo in modelos %}
+    <tr>
+      <td>{{ modelo.codigo }}</td>
+      <td>{{ modelo.get_tipo_display }}</td>
+      <td>{{ modelo.ancho_mm|floatformat:"-1" }} × {{ modelo.alto_mm|floatformat:"-1" }}</td>
+      <td>{{ modelo.cantidad_variantes }}</td>
+      <td>{{ modelo.offset_x|floatformat:"-2" }} / {{ modelo.offset_y|floatformat:"-2" }}</td>
+      <td>{{ modelo.offset_x_reverso|floatformat:"-2" }} / {{ modelo.offset_y_reverso|floatformat:"-2" }}</td>
+      <td><a href="{% url 'calibracion' modelo.pk %}">Calibrar</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

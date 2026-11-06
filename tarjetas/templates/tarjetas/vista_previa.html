@@ -6,7 +6,11 @@
 {% block contenido %}
 <div class="encabezado">
   <h1>{{ estampa.variante }} <small>· {{ ancho }} × {{ alto }} mm · Pedido <a href="{% url 'pedido_detalle' estampa.pedido.pk %}">{{ estampa.pedido.numero_factura }}</a></small></h1>
-  <a class="boton" href="{% url 'estampa_editar' estampa.pk %}">Editar datos</a>
+  <div class="acciones">
+    <a class="boton" href="{% url 'pdf_estampa' estampa.pk %}" target="_blank">PDF de prueba (1 copia)</a>
+    <a class="boton" href="{% url 'calibracion' modelo.pk %}">Calibrar este modelo</a>
+    <a class="boton" href="{% url 'estampa_editar' estampa.pk %}">Editar datos</a>
+  </div>
 </div>
 
 <div class="herramientas">
@@ -24,6 +28,7 @@
   <p class="alerta">Faltan fuentes en <code>fuentes/</code>: {{ fuentes_faltantes|join:", " }}. La vista previa puede no coincidir con la impresión. Corré <code>python manage.py copiar_fuentes</code>.</p>
 {% endif %}
 {% for aviso in avisos %}<p class="alerta">{{ aviso }}</p>{% endfor %}
+{% for rol in no_entran_en_pdf %}<p class="alerta">En el PDF, el texto del cuadro {{ rol }} no entra (medido con las métricas reales de la fuente).</p>{% endfor %}
 <ul id="desbordes" class="desbordes" hidden></ul>
 
 <section id="mover" class="mover" hidden data-url="{% url 'posiciones' estampa.pk %}">

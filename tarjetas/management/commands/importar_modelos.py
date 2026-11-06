@@ -1,8 +1,11 @@
 from pathlib import Path
 
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
 
-from tarjetas.importador import Importador
+from tarjetas.importador import Importador, aplicar_estilos
+from tarjetas.models import ModeloTarjeta, VarianteLayout
 
 
 class Command(BaseCommand):
@@ -18,11 +21,21 @@ class Command(BaseCommand):
             action="store_true",
             help=(
                 "Si el modelo ya existe, actualiza sus cuadros. Conserva la calibración, las "
-                "imágenes de fondo y los roles corregidos a mano."
+                "imágenes de fondo y los roles y posiciones corregidos a mano."
+            ),
+        )
+        parser.add_argument(
+            "--estilos",
+            action="store_true",
+            help=(
+                "Lleva a las plantillas de cada variante la negrita por partes del .docx "
+                '(por ejemplo "**Mi Madrina:** Eva"). Solo trabaja sobre lo ya importado.'
             ),
         )
 
-    def handle(self, *args, ruta=None, actualizar=False, **options):
+    def handle(self, *args, ruta=None, actualizar=False, estilos=False, **options):
+        if estilos:
+            return self._estilos(ruta)
         importador = Importador(actualizar=actualizar)
         if ruta:
             archivo = Path(ruta)
@@ -33,6 +46,40 @@ class Command(BaseCommand):
         else:
             resultado = importador.importar_todo()
         self._mostrar(resultado)
+
+    def _estilos(self, ruta):
+        variantes = VarianteLayout.objects.filter(modelo__tipo=ModeloTarjeta.Tipo.ESTAMPA)
+        if ruta:
+            origen = Importador()._ruta_relativa(Path(ruta).resolve())
+            variantes = variantes.filter(archivo_origen=origen)
+            if not variantes.exists():
+                raise CommandError(f"El archivo no está importado: {ruta}")
+        cambios, no_aplicadas = [], []
+        raiz = Path(settings.MODELOS_DOCX_DIR)
+        with transaction.atomic():
+            for variante in variantes.order_by("modelo__codigo", "nombre"):
+                archivo = raiz / variante.archivo_origen
+                if not archivo.is_file():
+                    no_aplicadas.append(f"{variante.archivo_origen}: no se encontró el archivo")
+                    continue
+                propios, pendientes = aplicar_estilos(variante, archivo)
+                cambios += propios
+                no_aplicadas += pendientes
+
+        self.stdout.write(self.style.MIGRATE_HEADING("Negrita por partes"))
+        self.stdout.write(f"  Plantillas cambiadas: {len(cambios)}")
+        actual = None
+        for cambio in cambios:
+            if cambio.variante != actual:
+                actual = cambio.variante
+                self.stdout.write(f"\n{actual}   (en el .docx: {cambio.docx})")
+            self.stdout.write(f"  {cambio.plantilla}")
+            self.stdout.write(f"    antes:   {cambio.antes!r}")
+            self.stdout.write(f"    después: {cambio.despues!r}")
+        if no_aplicadas:
+            self.stdout.write("\nNo se aplicaron (revisalas a mano):")
+            for linea in no_aplicadas:
+                self.stdout.write(f"  - {linea}")
 
     def _mostrar(self, r):
         self.stdout.write(self.style.MIGRATE_HEADING("Resumen"))

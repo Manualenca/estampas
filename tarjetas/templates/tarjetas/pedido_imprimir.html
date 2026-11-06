@@ -1,0 +1,84 @@
+{% extends "tarjetas/base.html" %}
+{% block titulo %}Imprimir pedido {{ pedido.numero_factura }} · Estampas{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Imprimir pedido {{ pedido.numero_factura }} <small>· {{ pedido.get_estado_display }}</small></h1>
+  <a class="boton" href="{% url 'pedido_detalle' pedido.pk %}">Volver al pedido</a>
+</div>
+
+<p class="aviso-impresion"><strong>Imprimir en tamaño real / 100 %, sin «Ajustar a la página».</strong>
+  En el diálogo de impresión elegí «Tamaño real» o escala 100 %, y el tamaño de papel de la tarjeta.</p>
+
+{% for estampa, rol in avisos %}
+  <p class="alerta">En <a href="{% url 'vista_previa' estampa.pk %}">{{ estampa.variante }}</a> el texto del cuadro {{ rol }} no entra: revisalo en la vista previa.</p>
+{% endfor %}
+
+<section class="bloque">
+  <h2>Estampas</h2>
+  {% if estampas %}
+  <table class="tabla">
+    <thead><tr><th>Modelo</th><th>Chicos</th><th>Copias</th><th>Caras</th></tr></thead>
+    <tbody>
+      {% for estampa in estampas %}
+      <tr>
+        <td><a href="{% url 'vista_previa' estampa.pk %}">{{ estampa.variante }}</a></td>
+        <td>{% for n in estampa.ninos.all %}{{ n.nombre }}{% if not forloop.last %} y {% endif %}{% endfor %}</td>
+        <td>{{ estampa.cantidad }}</td>
+        <td>{% if estampa.caras == 2 %}Anverso y reverso{% else %}Anverso{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="nota">En total: {{ paginas }} página{{ paginas|pluralize }}. Cada página tiene el tamaño exacto de su tarjeta.</p>
+  <div class="acciones">
+    <a class="boton principal" href="{% url 'pdf_pedido' pedido.pk %}" target="_blank">PDF de estampas (anverso y reverso intercalados)</a>
+    <a class="boton" href="{% url 'pdf_pedido' pedido.pk %}?orden=por_cara" target="_blank">PDF: primero todos los anversos, después los reversos</a>
+  </div>
+  {% else %}
+  <p class="vacio">El pedido no tiene estampas.</p>
+  {% endif %}
+</section>
+
+<section class="bloque">
+  <h2>Diplomas</h2>
+  {% if ninos %}
+  <ul>
+    {% for nino in ninos %}
+      <li>{{ nino.nombre }}: {% if nino.diploma_elegido %}{{ nino.diploma_elegido.modelo.codigo }}{% else %}<span class="alerta">sin diploma (cargá el género o elegilo a mano)</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  <a class="boton principal" href="{% url 'pdf_diplomas' pedido.pk %}" target="_blank">PDF de diplomas (uno por chico)</a>
+  {% else %}
+  <p class="vacio">Ningún chico lleva diploma.</p>
+  {% endif %}
+</section>
+
+<section class="bloque">
+  <h2>Calibración de la impresora</h2>
+  <p class="nota">Si lo impreso se corre respecto de la tarjeta, ajustá el modelo con la hoja de prueba.</p>
+  <ul>
+    {% for modelo in modelos %}<li><a href="{% url 'calibracion' modelo.pk %}">{{ modelo.codigo }}</a></li>{% endfor %}
+  </ul>
+</section>
+
+<section class="bloque">
+  <h2>Estado</h2>
+  <p class="nota">Generar el PDF no cambia el estado: marcalo cuando corresponda.</p>
+  {% if siguiente %}
+  <form method="post" action="{% url 'pedido_estado' pedido.pk %}">
+    {% csrf_token %}
+    <input type="hidden" name="estado" value="{{ siguiente }}">
+    <input type="hidden" name="volver" value="pedido_imprimir">
+    <button type="submit" class="boton principal">Marcar como {% if siguiente == "impreso" %}impreso{% else %}enviado{% endif %}</button>
+  </form>
+  {% endif %}
+  <table class="tabla historial">
+    <thead><tr><th>Fecha y hora</th><th>De</th><th>A</th></tr></thead>
+    <tbody>
+      {% for cambio in historial %}
+      <tr><td>{{ cambio.fecha_hora|date:"d/m/Y H:i" }}</td><td>{{ cambio.get_estado_anterior_display|default:"–" }}</td><td>{{ cambio.get_estado_nuevo_display }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

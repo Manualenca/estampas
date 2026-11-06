@@ -11,7 +11,10 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         familias = set(CuadroTexto.objects.values_list("fuente", flat=True))
         familias |= set(EstiloLinea.objects.exclude(fuente="").values_list("fuente", flat=True))
-        copiadas, faltantes = fuentes.copiar(sorted(familias), settings.FUENTES_DIR)
+        copiadas, faltantes, generadas = fuentes.copiar(sorted(familias), settings.FUENTES_DIR)
+        for familia, origen, ejes in generadas:
+            valores = ", ".join(f"{eje}={valor:g}" for eje, valor in ejes.items())
+            self.stdout.write(f"Generada desde la fuente variable {origen} ({valores}): {familia}")
 
         por_familia = {}
         for cara in copiadas:

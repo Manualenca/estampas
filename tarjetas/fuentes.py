@@ -110,8 +110,64 @@ def nombre_de_archivo(cara):
     return f"{limpio(cara.familia)} - {limpio(cara.estilo)}{cara.ruta.suffix.lower()}"
 
 
+def buscar_instancias_variables(familias, carpetas=None):
+    """Familias pedidas que son una instancia de una fuente variable, como "Bahnschrift SemiLight".
+
+    Devuelve {familia: (ruta de la fuente variable, coordenadas de los ejes)}.
+    """
+    from fontTools.ttLib import TTFont
+
+    buscadas = {f.lower(): f for f in familias if f}
+    halladas = {}
+    for carpeta in carpetas or carpetas_del_sistema():
+        if not carpeta.is_dir():
+            continue
+        for ruta in carpeta.rglob("*"):
+            if ruta.suffix.lower() not in EXTENSIONES:
+                continue
+            nombres = leer_nombres(ruta)
+            if not nombres or not any(b.startswith(nombres[0].lower() + " ") for b in buscadas):
+                continue
+            try:
+                fuente = TTFont(ruta, lazy=True)
+            except Exception:  # noqa: BLE001 - archivo de fuente ilegible: se ignora.
+                continue
+            if "fvar" not in fuente:
+                continue
+            for instancia in fuente["fvar"].instances:
+                estilo = fuente["name"].getDebugName(instancia.subfamilyNameID) or ""
+                completo = f"{nombres[0]} {estilo}".lower()
+                if completo in buscadas and buscadas[completo] not in halladas:
+                    halladas[buscadas[completo]] = (ruta, dict(instancia.coordinates))
+    return halladas
+
+
+def generar_instancia(origen, coordenadas, familia, destino):
+    """Crea un TTF estático de una instancia de fuente variable, con el nombre de la familia."""
+    from fontTools.ttLib import TTFont
+    from fontTools.varLib import instancer
+
+    variable = TTFont(origen)
+    fija = instancer.instantiateVariableFont(variable, coordenadas)
+    nombre_ps = re.sub(r"[^A-Za-z0-9-]", "", familia.replace(" ", "-"))
+    tabla = fija["name"]
+    for identificador in (16, 17, 21, 22, 25):
+        tabla.removeNames(nameID=identificador)
+    for identificador, texto in ((1, familia), (2, "Regular"), (3, f"{nombre_ps};estampas"),
+                                 (4, familia), (6, nombre_ps)):
+        tabla.setName(texto, identificador, 3, 1, 0x409)
+        tabla.setName(texto, identificador, 1, 0, 0)
+    final = Path(destino) / familia / f"{familia} - Regular.ttf"
+    final.parent.mkdir(parents=True, exist_ok=True)
+    fija.save(final)
+    return Cara(familia, "Regular", final)
+
+
 def copiar(familias, destino, carpetas=None):
-    """Copia las caras encontradas a destino/<familia>/. Devuelve (copiadas, faltantes)."""
+    """Copia las caras encontradas a destino/<familia>/. Devuelve (copiadas, faltantes, generadas).
+
+    Las familias que solo existen como instancia de una fuente variable se generan con fontTools.
+    """
     encontradas = buscar(familias, carpetas)
     copiadas = []
     for familia, caras in encontradas.items():
@@ -122,8 +178,27 @@ def copiar(familias, destino, carpetas=None):
             if not final.exists() or final.stat().st_size != cara.ruta.stat().st_size:
                 shutil.copyfile(cara.ruta, final)
             copiadas.append(Cara(familia, cara.estilo, final))
-    faltantes = sorted(f for f in familias if f and f not in encontradas)
-    return copiadas, faltantes
+    pendientes = [f for f in familias if f and f not in encontradas]
+    generadas = []
+    for familia, (origen, coordenadas) in buscar_instancias_variables(pendientes, carpetas).items():
+        cara = generar_instancia(origen, coordenadas, familia, destino)
+        copiadas.append(cara)
+        generadas.append((familia, origen.name, coordenadas))
+    hechas = {c.familia for c in copiadas}
+    faltantes = sorted(f for f in pendientes if f not in hechas)
+    return copiadas, faltantes, generadas
+
+
+def alto_de_linea_de_archivo(ruta):
+    """Alto de renglón sencillo según la tabla hhea de la fuente, relativo al tamaño."""
+    from fontTools.ttLib import TTFont
+
+    try:
+        fuente = TTFont(ruta, lazy=True)
+        cabecera = fuente["hhea"]
+        return (cabecera.ascent - cabecera.descent + cabecera.lineGap) / fuente["head"].unitsPerEm
+    except Exception:  # noqa: BLE001 - sin métricas legibles: que decida quien llama.
+        return None
 
 
 def catalogo(carpeta):

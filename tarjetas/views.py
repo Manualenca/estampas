@@ -13,8 +13,8 @@ from django.views.decorators.http import require_POST
 from django.views.static import serve
 
 from . import fuentes
-from .forms import EstampaForm, NinoFormSet, PedidoForm
-from .models import AjusteCuadro, CuadroTexto, Estampa, Pedido
+from .forms import CalibracionForm, EstampaForm, NinoFormSet, PedidoForm
+from .models import AjusteCuadro, CuadroTexto, Estampa, ModeloTarjeta, Pedido
 from .textos import ContextoEstampa, factor_linea, texto_de_cuadro, textos_de_estampa
 
 ALINEACION_CSS = {
@@ -168,10 +168,19 @@ def _css_linea(linea, texto):
         # Como en Word: los saltos de la plantilla se respetan y las líneas largas se acomodan.
         "white-space:pre-wrap",
     ]
+    partes.append(f"text-align:{ALINEACION_CSS[linea.alineacion]}")
     if cuadro.espaciado_letras_pt:
         partes.append(f"letter-spacing:{numero(cuadro.espaciado_letras_pt)}pt")
-    if cuadro.espacio_despues_pt:
-        partes.append(f"margin-bottom:{numero(cuadro.espacio_despues_pt)}pt")
+    if linea.espacio_antes_pt:
+        partes.append(f"margin-top:{numero(linea.espacio_antes_pt)}pt")
+    if linea.espacio_despues_pt:
+        partes.append(f"margin-bottom:{numero(linea.espacio_despues_pt)}pt")
+    if linea.sangria_izquierda_mm or linea.sangria_derecha_mm:
+        partes.append(
+            f"padding:0 {numero(linea.sangria_derecha_mm)}mm 0 {numero(linea.sangria_izquierda_mm)}mm"
+        )
+    if linea.sangria_primera_mm:
+        partes.append(f"text-indent:{numero(linea.sangria_primera_mm)}mm")
     return ";".join(partes)
 
 
@@ -216,6 +225,9 @@ def vista_previa(request, pk):
     usadas = {linea.fuente for t in textos for linea in t.lineas} | {t.cuadro.fuente for t in textos}
     faltantes = sorted(f for f in usadas if f and f.lower() not in disponibles)
     avisos = list(dict.fromkeys(a for t in textos for a in t.avisos))
+    from .pdf import componer
+
+    no_entran_en_pdf = [t.cuadro.get_rol_display() for t in textos if not t.vacio and componer(t).desborda]
 
     return render(
         request,
@@ -229,6 +241,7 @@ def vista_previa(request, pk):
             "alto": numero(modelo.alto_mm),
             "fuentes_faltantes": faltantes,
             "avisos": avisos,
+            "no_entran_en_pdf": no_entran_en_pdf,
         },
     )
 
@@ -359,3 +372,146 @@ def fuentes_css(request):
 
 def fuente(request, ruta):
     return serve(request, ruta, document_root=settings.FUENTES_DIR)
+
+
+# ----- PDF e impresión -----
+
+ORDENES = {"intercalado": True, "por_cara": False}
+
+
+def _respuesta_pdf(resultado, nombre):
+    respuesta = HttpResponse(resultado.contenido, content_type="application/pdf")
+    respuesta["Content-Disposition"] = f'inline; filename="{nombre}"'
+    return respuesta
+
+
+def _estampas_del_pedido(pedido):
+    return pedido.estampas.select_related("variante__modelo", "oracion").prefetch_related(
+        "ninos", "ajustes", "estampasacramento_set__sacramento"
+    ).order_by("pk")
+
+
+def avisos_de_impresion(estampas):
+    """Lo que no entra según las métricas reales de las fuentes, como saldrá en el PDF."""
+    from .pdf import componer
+
+    avisos = []
+    for estampa in estampas:
+        for texto in textos_de_estampa(estampa):
+            if not texto.vacio and componer(texto).desborda:
+                avisos.append((estampa, texto.cuadro.get_rol_display()))
+    return avisos
+
+
+def pedido_imprimir(request, pk):
+    pedido = get_object_or_404(Pedido, pk=pk)
+    estampas = list(_estampas_del_pedido(pedido))
+    ninos = list(pedido.ninos.filter(lleva_diploma=True))
+    for nino in ninos:
+        nino.diploma_elegido = nino.diploma_que_corresponde()
+    modelos = sorted({e.variante.modelo for e in estampas} | {n.diploma_elegido.modelo for n in ninos if n.diploma_elegido}, key=lambda m: m.codigo)
+    for estampa in estampas:
+        reverso = estampa.variante.cuadros.filter(pagina=CuadroTexto.Pagina.REVERSO).exists()
+        estampa.caras = 2 if reverso else 1
+    paginas = sum(e.cantidad * e.caras for e in estampas)
+    return render(
+        request,
+        "tarjetas/pedido_imprimir.html",
+        {
+            "pedido": pedido,
+            "estampas": estampas,
+            "ninos": ninos,
+            "modelos": modelos,
+            "paginas": paginas,
+            "avisos": avisos_de_impresion(estampas),
+            "historial": pedido.historial.all(),
+            "siguiente": SIGUIENTE_ESTADO.get(pedido.estado),
+        },
+    )
+
+
+def pdf_pedido(request, pk):
+    pedido = get_object_or_404(Pedido, pk=pk)
+    from .pdf import pdf_de_estampas
+
+    intercalado = ORDENES.get(request.GET.get("orden", "intercalado"), True)
+    resultado = pdf_de_estampas(
+        _estampas_del_pedido(pedido), f"Estampas · Pedido {pedido.numero_factura}", intercalado
+    )
+    return _respuesta_pdf(resultado, f"estampas_{pedido.numero_factura}.pdf")
+
+
+def pdf_diplomas(request, pk):
+    pedido = get_object_or_404(Pedido, pk=pk)
+    from .pdf import pdf_de_diplomas
+
+    return _respuesta_pdf(pdf_de_diplomas(pedido), f"diplomas_{pedido.numero_factura}.pdf")
+
+
+def pdf_estampa(request, pk):
+    estampa = get_object_or_404(Estampa.objects.select_related("pedido", "variante__modelo"), pk=pk)
+    from .pdf import pdf_de_estampas
+
+    copias = None if request.GET.get("copias") == "todas" else 1
+    resultado = pdf_de_estampas([estampa], f"Estampa · {estampa.variante}", copias=copias)
+    return _respuesta_pdf(resultado, f"estampa_{estampa.pk}.pdf")
+
+
+SIGUIENTE_ESTADO = {
+    Pedido.Estado.INGRESADO: Pedido.Estado.IMPRESO,
+    Pedido.Estado.IMPRESO: Pedido.Estado.ENVIADO,
+}
+
+
+@require_POST
+def pedido_estado(request, pk):
+    """Avanza el estado un paso (Ingresado -> Impreso -> Enviado). El historial lo guarda el modelo."""
+    pedido = get_object_or_404(Pedido, pk=pk)
+    pedido_nuevo = request.POST.get("estado")
+    if SIGUIENTE_ESTADO.get(pedido.estado) != pedido_nuevo:
+        messages.error(request, "Ese cambio de estado no corresponde.")
+    else:
+        pedido.estado = pedido_nuevo
+        pedido.save()
+        messages.success(request, f"Pedido marcado como {pedido.get_estado_display().lower()}.")
+    destino = request.POST.get("volver")
+    if destino not in ("pedido_detalle", "pedido_imprimir"):
+        destino = "pedido_imprimir"
+    return redirect(destino, pk=pedido.pk)
+
+
+# ----- Calibración -----
+
+
+def modelos_lista(request):
+    modelos = ModeloTarjeta.objects.annotate(cantidad_variantes=Count("variantes")).order_by("tipo", "codigo")
+    return render(request, "tarjetas/modelos.html", {"modelos": modelos})
+
+
+def calibracion(request, pk):
+    modelo = get_object_or_404(ModeloTarjeta, pk=pk)
+    if request.method == "POST":
+        form = CalibracionForm(request.POST, instance=modelo)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Calibración guardada. Reimprimí la hoja de prueba para comprobarla.")
+            return redirect("calibracion", pk=modelo.pk)
+    else:
+        form = CalibracionForm(instance=modelo)
+    variantes = modelo.variantes.order_by("nombre")
+    tiene_reverso = CuadroTexto.objects.filter(
+        variante__modelo=modelo, pagina=CuadroTexto.Pagina.REVERSO
+    ).exists()
+    return render(
+        request,
+        "tarjetas/calibracion.html",
+        {"modelo": modelo, "form": form, "variantes": variantes, "tiene_reverso": tiene_reverso},
+    )
+
+
+def pdf_calibracion(request, pk):
+    modelo = get_object_or_404(ModeloTarjeta, pk=pk)
+    from .pdf import pdf_de_calibracion
+
+    variante = modelo.variantes.filter(pk=request.GET.get("variante")).first() if request.GET.get("variante") else None
+    return _respuesta_pdf(pdf_de_calibracion(modelo, variante), f"calibracion_{modelo.codigo}.pdf")

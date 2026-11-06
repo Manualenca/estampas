@@ -1,0 +1,52 @@
+{% extends "tarjetas/base.html" %}
+{% block titulo %}Calibración {{ modelo.codigo }} · Estampas{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Calibración · {{ modelo.codigo }} <small>· {{ modelo.ancho_mm|floatformat:"-1" }} × {{ modelo.alto_mm|floatformat:"-1" }} mm</small></h1>
+  <a class="boton" href="{% url 'modelos' %}">Todos los modelos</a>
+</div>
+
+<p class="aviso-impresion"><strong>Imprimir en tamaño real / 100 %, sin «Ajustar a la página».</strong></p>
+
+<section class="bloque">
+  <h2>1. Imprimí la hoja de prueba</h2>
+  <p>Tiene el tamaño de la tarjeta, reglas en mm en los bordes, cruces en las esquinas y el contorno de cada cuadro,
+    con la calibración actual ya aplicada. Imprimila en papel común, superponela a la tarjeta contra la luz y mirá cuánto se corre.</p>
+  <div class="acciones">
+    {% for variante in variantes %}
+      <a class="boton{% if forloop.first %} principal{% endif %}" target="_blank"
+         href="{% url 'pdf_calibracion' modelo.pk %}?variante={{ variante.pk }}">Hoja de prueba{% if variantes|length > 1 %} · {{ variante.nombre }}{% endif %}</a>
+    {% endfor %}
+  </div>
+  {% if tiene_reverso %}<p class="nota">El modelo tiene reverso: la hoja trae dos páginas, cada una con su propio ajuste.</p>{% endif %}
+</section>
+
+<section class="bloque">
+  <h2>2. Cargá el corrimiento</h2>
+  <p class="nota">En mm. X positivo mueve todo a la derecha; Y positivo, hacia abajo. Si lo impreso quedó 1 mm a la derecha de donde
+    tenía que ir, restá 1 a X.</p>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    <div class="grilla calibracion">
+      <fieldset>
+        <legend>Anverso</legend>
+        <label class="campo"><span>{{ form.offset_x.label }}</span>{{ form.offset_x }}{{ form.offset_x.errors }}</label>
+        <label class="campo"><span>{{ form.offset_y.label }}</span>{{ form.offset_y }}{{ form.offset_y.errors }}</label>
+      </fieldset>
+      <fieldset{% if not tiene_reverso %} class="apagado"{% endif %}>
+        <legend>Reverso{% if not tiene_reverso %} (este modelo no tiene){% endif %}</legend>
+        <label class="campo"><span>{{ form.offset_x_reverso.label }}</span>{{ form.offset_x_reverso }}{{ form.offset_x_reverso.errors }}</label>
+        <label class="campo"><span>{{ form.offset_y_reverso.label }}</span>{{ form.offset_y_reverso }}{{ form.offset_y_reverso.errors }}</label>
+      </fieldset>
+    </div>
+    <div class="acciones">
+      <button type="submit" class="boton principal">Guardar calibración</button>
+    </div>
+  </form>
+</section>
+
+<section class="bloque">
+  <h2>3. Reimprimí la hoja para comprobar</h2>
+  <p class="nota">Repetí hasta que las marcas coincidan con la tarjeta. El ajuste se aplica a todas las estampas de este modelo.</p>
+</section>
+{% endblock %}

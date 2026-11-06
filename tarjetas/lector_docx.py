@@ -66,6 +66,10 @@ class Parrafo:
     linea: int | None = None
     regla_linea: str | None = None
     despues: float = 0
+    antes: float = 0
+    sangria_izquierda: float = 0  # mm
+    sangria_derecha: float = 0  # mm
+    sangria_primera: float = 0  # mm, respecto de la izquierda (negativa = francesa)
     tamano_marca: float | None = None
     fuente_marca: str | None = None
 
@@ -86,7 +90,7 @@ class Parrafo:
             alto = exacto if self.regla_linea == "exact" else max(natural, exacto)
         else:
             alto = natural * ((self.linea or 240) / 240)
-        return (alto + self.despues) * PT_A_MM
+        return (alto + self.antes + self.despues) * PT_A_MM
 
 
 @dataclass
@@ -210,9 +214,26 @@ class Estilos:
         if espacio is not None:
             if espacio.get(W("after")) is not None:
                 datos["despues"] = int(espacio.get(W("after"))) / 20
+            if espacio.get(W("before")) is not None:
+                datos["antes"] = int(espacio.get(W("before"))) / 20
             if espacio.get(W("line")) is not None:
                 datos["linea"] = int(espacio.get(W("line")))
             datos["regla_linea"] = espacio.get(W("lineRule")) or datos.get("regla_linea")
+        sangria = elemento.find(W("ind"))
+        if sangria is not None:
+            valor = lambda *claves: next(  # noqa: E731
+                (int(sangria.get(W(c))) for c in claves if sangria.get(W(c)) is not None), None
+            )
+            izquierda, derecha = valor("left", "start"), valor("right", "end")
+            primera, francesa = valor("firstLine"), valor("hanging")
+            if izquierda is not None:
+                datos["sangria_izquierda"] = izquierda * TWIP_A_MM
+            if derecha is not None:
+                datos["sangria_derecha"] = derecha * TWIP_A_MM
+            if francesa is not None:
+                datos["sangria_primera"] = -francesa * TWIP_A_MM
+            elif primera is not None:
+                datos["sangria_primera"] = primera * TWIP_A_MM
         estilo = elemento.find(W("pStyle"))
         if estilo is not None:
             datos["estilo"] = estilo.get(W("val"))
@@ -259,6 +280,10 @@ def _leer_parrafo(elemento, estilos):
         linea=efectivo.get("linea"),
         regla_linea=efectivo.get("regla_linea"),
         despues=efectivo.get("despues", 0) or 0,
+        antes=efectivo.get("antes", 0) or 0,
+        sangria_izquierda=efectivo.get("sangria_izquierda", 0) or 0,
+        sangria_derecha=efectivo.get("sangria_derecha", 0) or 0,
+        sangria_primera=efectivo.get("sangria_primera", 0) or 0,
         tamano_marca=marca.get("tamano"),
         fuente_marca=marca.get("fuente"),
     )

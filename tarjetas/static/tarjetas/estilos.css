@@ -90,6 +90,12 @@ textarea { resize: vertical; }
 .con-contorno .cuadro.rol-sin_asignar { outline-color: #888; }
 .cuadro.desborda { outline: 2px solid var(--peligro); }
 .con-contorno .cuadro.desborda::before { background: var(--peligro); }
+.aviso-impresion { background: #e6eef8; border-left: 4px solid #1a73e8; padding: .55rem .8rem; }
+.bloque { background: #fff; border: 1px solid var(--borde); border-radius: 6px; padding: .5rem 1rem 1rem; margin: 1rem 0; }
+.bloque h2 { margin-top: .5rem; }
+.calibracion fieldset { margin: 0; }
+.apagado { opacity: .55; }
+.historial { margin-top: .75rem; }
 .mover { background: #fff; border: 1px solid var(--borde); border-radius: 6px; padding: .6rem .8rem; margin-bottom: 1rem; }
 .mover .fila { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-top: .4rem; }
 .mover input[type=number] { width: 5.5rem; }

@@ -6,6 +6,9 @@ Lo usan la vista previa y el PDF, para que los dos muestren exactamente lo mismo
 import re
 from dataclasses import dataclass, field
 from decimal import Decimal
+from functools import lru_cache
+
+from django.conf import settings
 
 from .lector_docx import ALTO_LINEA_DEFECTO, ALTO_LINEA_FUENTE
 from .models import CuadroTexto, EstiloLinea, Genero, PlantillaTexto
@@ -58,8 +61,21 @@ def unir(valores):
     return ", ".join(valores[:-1]) + " y " + valores[-1]
 
 
+@lru_cache(maxsize=None)
+def _alto_de_linea_de_familia(familia):
+    from . import fuentes
+
+    caras = [c for c in fuentes.catalogo(settings.FUENTES_DIR) if c.familia.lower() == familia]
+    regular = next((c for c in caras if c.peso_y_estilo == (400, "normal")), caras[0] if caras else None)
+    return fuentes.alto_de_linea_de_archivo(regular.ruta) if regular else None
+
+
 def factor_linea(fuente):
-    return ALTO_LINEA_FUENTE.get((fuente or "").lower(), ALTO_LINEA_DEFECTO)
+    """Alto de renglón sencillo: medido en Word si lo tenemos; si no, el de la fuente."""
+    clave = (fuente or "").lower()
+    if clave in ALTO_LINEA_FUENTE:
+        return ALTO_LINEA_FUENTE[clave]
+    return _alto_de_linea_de_familia(clave) or ALTO_LINEA_DEFECTO
 
 
 @dataclass
@@ -77,6 +93,12 @@ class Linea:
     negrita: bool = False
     cursiva: bool = False
     color: str = "000000"
+    alineacion: str = CuadroTexto.Alineacion.CENTRO
+    espacio_antes_pt: Decimal = Decimal("0")
+    espacio_despues_pt: Decimal = Decimal("0")
+    sangria_izquierda_mm: Decimal = Decimal("0")
+    sangria_derecha_mm: Decimal = Decimal("0")
+    sangria_primera_mm: Decimal = Decimal("0")
 
     @property
     def texto(self):
@@ -286,15 +308,25 @@ def _renglones_automaticos(contexto, cuadro):
     return completar(plantilla.texto, valores)
 
 
-def _renglones_manuales(texto):
-    return [(t, None) for t in texto.splitlines() if t.strip()]
+def _renglones_manuales(texto, rol):
+    """Renglones escritos a mano. Cada uno se reconoce por su contenido para darle su estilo."""
+    from .importador import _elemento_de_linea
+
+    renglones = []
+    for renglon in texto.splitlines():
+        if not renglon.strip():
+            continue
+        limpio = NEGRITA.sub(lambda m: m.group(1), renglon)
+        elemento = _elemento_de_linea(limpio, rol) if rol in (Rol.CELEBRACION, Rol.ORACION) else None
+        renglones.append((renglon, elemento))
+    return renglones
 
 
 def texto_de_cuadro(contexto, cuadro, ajuste=None):
     contexto.avisos = []
     manual = bool(ajuste and ajuste.texto_manual.strip())
     if manual:
-        renglones = _renglones_manuales(ajuste.texto_manual)
+        renglones = _renglones_manuales(ajuste.texto_manual, cuadro.rol)
     elif cuadro.rol == Rol.SIN_ASIGNAR:
         renglones = []  # Solo se imprime si se le escribe un texto a mano.
     else:
@@ -307,17 +339,27 @@ def texto_de_cuadro(contexto, cuadro, ajuste=None):
     estilos = {e.elemento: e for e in cuadro.estilos.all()}
 
     lineas = []
+    def propio(estilo, campo, defecto):
+        valor = getattr(estilo, campo) if estilo else None
+        return defecto if valor in (None, "") else valor
+
     for texto, elemento in renglones:
         estilo = estilos.get(elemento)
         lineas.append(
             Linea(
                 segmentos=separar_negrita(texto),
                 elemento=elemento,
-                fuente=(estilo.fuente if estilo and estilo.fuente else cuadro.fuente),
-                tamano_pt=(estilo.tamano_pt if estilo and estilo.tamano_pt else base) * escala,
-                negrita=estilo.negrita if estilo and estilo.negrita is not None else cuadro.negrita,
-                cursiva=estilo.cursiva if estilo and estilo.cursiva is not None else cuadro.cursiva,
-                color=(estilo.color if estilo and estilo.color else color),
+                fuente=propio(estilo, "fuente", cuadro.fuente),
+                tamano_pt=propio(estilo, "tamano_pt", base) * escala,
+                negrita=propio(estilo, "negrita", cuadro.negrita),
+                cursiva=propio(estilo, "cursiva", cuadro.cursiva),
+                color=propio(estilo, "color", color),
+                alineacion=propio(estilo, "alineacion", cuadro.alineacion),
+                espacio_antes_pt=propio(estilo, "espacio_antes_pt", cuadro.espacio_antes_pt),
+                espacio_despues_pt=propio(estilo, "espacio_despues_pt", cuadro.espacio_despues_pt),
+                sangria_izquierda_mm=propio(estilo, "sangria_izquierda_mm", Decimal("0")),
+                sangria_derecha_mm=propio(estilo, "sangria_derecha_mm", Decimal("0")),
+                sangria_primera_mm=propio(estilo, "sangria_primera_mm", Decimal("0")),
             )
         )
     editable = ajuste.texto_manual if manual else "\n".join(texto for texto, _ in renglones)

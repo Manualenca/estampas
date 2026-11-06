@@ -24,6 +24,19 @@ class PedidoForm(forms.ModelForm):
         widgets = {"fecha_entrega": FECHA, "observaciones": forms.Textarea(attrs={"rows": 3})}
 
 
+class CalibracionForm(forms.ModelForm):
+    class Meta:
+        model = ModeloTarjeta
+        fields = ["offset_x", "offset_y", "offset_x_reverso", "offset_y_reverso"]
+        labels = {
+            "offset_x": "Anverso: corrimiento X (mm)",
+            "offset_y": "Anverso: corrimiento Y (mm)",
+            "offset_x_reverso": "Reverso: corrimiento X (mm)",
+            "offset_y_reverso": "Reverso: corrimiento Y (mm)",
+        }
+        widgets = {campo: forms.NumberInput(attrs={"step": "0.1"}) for campo in fields}
+
+
 class DiplomaChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, variante):
         return variante.modelo.codigo

@@ -415,7 +415,7 @@ class FuentesTests(SimpleTestCase):
 
     def test_copia_con_nombre_estable_y_lista_faltantes(self):
         destino = self.carpeta / "fuentes"
-        copiadas, faltantes = fuentes.copiar(["Abadi", "Bierstadt"], destino, [self.carpeta / "nube"])
+        copiadas, faltantes, _ = fuentes.copiar(["Abadi", "Bierstadt"], destino, [self.carpeta / "nube"])
         nombres = sorted(c.ruta.name for c in copiadas)
         self.assertEqual(nombres, ["Abadi - Italic.ttf", "Abadi - Regular.ttf"])
         self.assertEqual(faltantes, ["Bierstadt"])
@@ -525,7 +525,7 @@ class PosicionesTests(Base):
         datos = {campo: getattr(self.nombre, campo) for campo in (
             "variante", "indice_origen", "pagina", "rol", "x_mm", "y_mm", "ancho_mm", "alto_mm", "fuente",
             "tamano_pt", "color", "alineacion", "alineacion_vertical", "interlineado",
-            "espacio_despues_pt", "espaciado_letras_pt", "rotacion",
+            "espacio_despues_pt", "espacio_antes_pt", "espaciado_letras_pt", "rotacion",
         )}
         datos["variante"] = self.variante.pk
         datos["x_mm"] = 12

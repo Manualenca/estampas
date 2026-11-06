@@ -33,7 +33,7 @@ python manage.py importar_modelos
 python manage.py copiar_fuentes
 ```
 
-`copiar_fuentes` busca en Windows, en tu carpeta de fuentes y en la caché de nube de Office (Abadi, Bierstadt) y las copia a `fuentes/` con nombres estables. Hay que volver a correrlo si un modelo nuevo usa otra fuente.
+`copiar_fuentes` busca en Windows, en tu carpeta de fuentes y en la caché de nube de Office (Abadi, Bierstadt) y las copia a `fuentes/` con nombres estables. Si una fuente solo existe como instancia de una fuente variable (por ejemplo, Bahnschrift SemiLight), genera un archivo fijo con fontTools. Hay que volver a correrlo si un modelo nuevo usa otra fuente.
 
 ## Uso
 
@@ -52,7 +52,17 @@ El sistema queda en <http://127.0.0.1:8001/> y el admin en <http://127.0.0.1:800
 | `python manage.py importar_modelos "ruta\Tarj2059.docx"` | Importa solo ese archivo. |
 | `python manage.py importar_modelos --actualizar` | Actualiza los cuadros de lo ya importado. Conserva la calibración, las imágenes de fondo, los colores por género y los roles corregidos a mano. |
 
+| `python manage.py importar_modelos --estilos` | Lleva a las plantillas de cada variante la negrita por partes del .docx (por ejemplo, "**Mi Madrina:** Eva") y muestra qué cambió. |
+
 Al terminar muestra un resumen. Los cuadros marcados "sin asignar" se corrigen desde el admin y no se imprimen hasta tener un rol.
+
+Después de `--actualizar`, volvé a correr `--estilos`: la actualización rehace los estilos por parte de cada cuadro.
+
+## Imprimir
+
+Desde el pedido, «Imprimir» da el PDF de estampas (cada página del tamaño exacto de la tarjeta, con anverso, reverso y copias) y el PDF de diplomas. Imprimí siempre en **tamaño real / 100 %, sin «Ajustar a la página»**. Generar el PDF no cambia el estado: usá «Marcar como impreso» y después «Marcar como enviado».
+
+Para calibrar la impresora, en «Modelos y calibración» imprimí la hoja de prueba del modelo en papel común, superponela a la tarjeta y cargá cuánto se corre (X positivo mueve a la derecha; Y positivo, hacia abajo). Cada cara tiene su propio ajuste.
 
 ## Copias de seguridad
 
