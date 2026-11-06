@@ -357,12 +357,14 @@ class Importador:
                 self.resultado.descartados.append(f"{origen}: oculto: {cuadro.texto[:40]!r}")
                 continue
             visibles.append(cuadro)
+        # Un cuadro tapado por otro con fondo es un resto de un pedido anterior.
+        tapados = [c for c in visibles if tapado_por_otro(c, visibles)]
+        for cuadro in tapados:
+            self.resultado.descartados.append(f"{origen}: tapado por otro cuadro: {cuadro.texto[:40]!r}")
+        visibles = [c for c in visibles if c not in tapados]
         return [(c, self._rol_de_estampa(c, visibles)) for c in visibles]
 
     def _rol_de_estampa(self, cuadro, visibles):
-        if tapado_por_otro(cuadro, visibles):
-            cuadro.nota = "Tapado por otro cuadro en el .docx: es un resto de otro pedido."
-            return Rol.SIN_ASIGNAR
         rol = deducir_rol(cuadro, visibles)
         if rol == Rol.SIN_ASIGNAR:
             cuadro.nota = "No se pudo deducir el rol."
@@ -509,6 +511,9 @@ class Importador:
             principal, campos = self._datos_de_cuadro(cuadro, rol, cuadros)
             guardado = actuales.get(cuadro.indice)
             if guardado:
+                if guardado.posicion_corregida:  # Movido a mano: no se pisa.
+                    for campo in ("x_mm", "y_mm", "ancho_mm", "alto_mm"):
+                        campos.pop(campo)
                 for campo, valor in campos.items():
                     setattr(guardado, campo, valor)
                 if not guardado.rol_corregido:
@@ -541,9 +546,9 @@ class Importador:
         if titulo is not None and ("titulo_completo", None) not in ya_definidas:
             lineas = [normalizar_texto(p.texto) for p in titulo.parrafos if p.texto.strip()]
             if len(lineas) == 2 and lineas[0] == "recuerdo de mi":
-                propias.append(("titulo_completo", None, None, "Recuerdo de {posesivo}\n{sacramentos}"))
+                propias.append(("titulo_completo", None, None, "Recuerdo de {Posesivo}\n{sacramentos}"))
             elif len(lineas) == 2 and lineas[0] == "recuerdo de":
-                propias.append(("titulo_completo", None, None, "Recuerdo de\n{posesivo} {sacramentos}"))
+                propias.append(("titulo_completo", None, None, "Recuerdo de\n{Posesivo} {sacramentos}"))
         for clave, sacramento, cantidad, texto in propias:
             PlantillaTexto.objects.get_or_create(
                 clave=clave,

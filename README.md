@@ -24,13 +24,16 @@ Si `.env` no existe, crealo a partir de `.env.example` con una clave nueva:
 python -c "from pathlib import Path as P; from django.core.management.utils import get_random_secret_key as g; P('.env').write_text(P('.env.example').read_text(encoding='utf-8').replace('poner-aca-una-clave-larga-y-aleatoria', g()), encoding='utf-8')"
 ```
 
-Después creá las tablas, tu usuario y cargá los modelos:
+Después creá las tablas, tu usuario, cargá los modelos y copiá sus fuentes:
 
 ```powershell
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py importar_modelos
+python manage.py copiar_fuentes
 ```
+
+`copiar_fuentes` busca en Windows, en tu carpeta de fuentes y en la caché de nube de Office (Abadi, Bierstadt) y las copia a `fuentes/` con nombres estables. Hay que volver a correrlo si un modelo nuevo usa otra fuente.
 
 ## Uso
 
@@ -39,7 +42,7 @@ python manage.py importar_modelos
 python manage.py runserver
 ```
 
-El sistema queda en <http://127.0.0.1:8001/admin/>. Usa el puerto 8001 por defecto porque el 8000 lo ocupa otro sistema.
+El sistema queda en <http://127.0.0.1:8001/> y el admin en <http://127.0.0.1:8001/admin/>. Usa el puerto 8001 por defecto porque el 8000 lo ocupa otro sistema.
 
 ## Importar modelos
 

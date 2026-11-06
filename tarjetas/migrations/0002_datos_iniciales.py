@@ -8,7 +8,7 @@ SACRAMENTOS = [
 
 # (clave, código de sacramento, cantidad de chicos, texto). None = cualquiera.
 PLANTILLAS = [
-    ("titulo_completo", None, None, "Recuerdo de {posesivo} {sacramentos}"),
+    ("titulo_completo", None, None, "Recuerdo de {Posesivo} {sacramentos}"),
     ("titulo_sin_recuerdo", None, None, "{Posesivo} {sacramentos}"),
     (
         "celebracion",

@@ -278,14 +278,15 @@ class ImportarModelosTests(ConCarpetaTemporal, TestCase):
         self.assertEqual(CuadroTexto.objects.count(), 1)
         self.assertIn("fuera de la hoja", salida)
 
-    def test_cuadro_tapado_queda_sin_asignar(self):
+    def test_cuadro_tapado_se_descarta(self):
         fondo = "<a:solidFill/>"
         tapado = cuadro("Parroquia X, 14 de mayo de 2026", 5, 30, z=1)
         encima = cuadro("Parroquia Y, 20 de mayo de 2026", 5, 30, relleno=fondo, z=2)
         self.estampa(xml=documento(tapado + encima))
-        self.importar()
-        self.assertEqual(CuadroTexto.objects.get(indice_origen=0).rol, "sin_asignar")
-        self.assertEqual(CuadroTexto.objects.get(indice_origen=1).rol, "celebracion")
+        salida = self.importar()
+        self.assertEqual(CuadroTexto.objects.get().indice_origen, 1)
+        self.assertEqual(CuadroTexto.objects.get().rol, "celebracion")
+        self.assertIn("tapado por otro cuadro", salida)
 
     def test_archivo_danado_no_frena_a_los_demas(self):
         ruta = self.carpeta / "estampas" / "Tarj9.docx"
@@ -334,7 +335,7 @@ class ImportarModelosTests(ConCarpetaTemporal, TestCase):
         self.estampa(xml=documento(titulo + cuadro("Ana Pérez", 5, 30)))
         self.importar()
         plantilla = PlantillaTexto.objects.get(variante__isnull=False)
-        self.assertEqual(plantilla.texto, "Recuerdo de {posesivo}\n{sacramentos}")
+        self.assertEqual(plantilla.texto, "Recuerdo de {Posesivo}\n{sacramentos}")
         self.assertTrue(CuadroTexto.objects.get(rol="titulo").respeta_saltos)
 
     def test_diploma_importa_solo_el_nombre(self):
@@ -476,3 +477,22 @@ class BackupTests(TestCase):
         finally:
             conexion.close()
         self.assertEqual(cantidad, 3)
+
+
+class PosicionCorregidaTests(ConCarpetaTemporal, TestCase):
+    def setUp(self):
+        self.crear_carpeta()
+        patron = override_settings(MODELOS_DOCX_DIR=self.carpeta)
+        patron.enable()
+        self.addCleanup(patron.disable)
+
+    def test_actualizar_no_pisa_una_posicion_movida_a_mano(self):
+        ruta = escribir_docx(self.carpeta / "estampas" / "Tarj1.docx", estampa_de_prueba())
+        call_command("importar_modelos", stdout=StringIO())
+        nombre = CuadroTexto.objects.get(rol="nombre")
+        nombre.y_mm, nombre.posicion_corregida = 40, True
+        nombre.save()
+        escribir_docx(ruta, estampa_de_prueba(y_nombre=33))
+        call_command("importar_modelos", str(ruta), actualizar=True, stdout=StringIO())
+        nombre.refresh_from_db()
+        self.assertEqual(nombre.y_mm, 40)

@@ -55,6 +55,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.auth.middleware.LoginRequiredMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -98,6 +99,12 @@ BACKUP_DIR = DB_PATH.parent / 'backups'
 BACKUPS_A_CONSERVAR = 30
 
 MODELOS_DOCX_DIR = BASE_DIR / 'modelos_docx'
+
+# Copias de las fuentes de los modelos (ver: manage.py copiar_fuentes).
+FUENTES_DIR = BASE_DIR / 'fuentes'
+
+# Todas las pantallas piden usuario; se entra con el login del admin.
+LOGIN_URL = 'admin:login'
 
 
 # Password validation

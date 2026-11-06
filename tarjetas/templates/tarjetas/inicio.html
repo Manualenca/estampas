@@ -1,0 +1,28 @@
+{% extends "tarjetas/base.html" %}
+{% block titulo %}Pedidos · Estampas{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Pedidos</h1>
+  <a class="boton principal" href="{% url 'pedido_nuevo' %}">Nuevo pedido</a>
+</div>
+{% if pedidos %}
+<table class="tabla">
+  <thead>
+    <tr><th>Factura</th><th>SAPP</th><th>Entrega</th><th>Estado</th><th>Estampas</th></tr>
+  </thead>
+  <tbody>
+    {% for pedido in pedidos %}
+    <tr>
+      <td><a href="{% url 'pedido_detalle' pedido.pk %}">{{ pedido.numero_factura }}</a></td>
+      <td>{{ pedido.numero_sapp }}</td>
+      <td>{{ pedido.fecha_entrega|date:"d/m/Y" }}</td>
+      <td>{{ pedido.get_estado_display }}</td>
+      <td>{{ pedido.cantidad_estampas }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="vacio">Todavía no hay pedidos.</p>
+{% endif %}
+{% endblock %}

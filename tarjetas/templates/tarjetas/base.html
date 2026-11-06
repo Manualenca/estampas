@@ -1,0 +1,30 @@
+{% load static %}<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Estampas{% endblock %}</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="{% static 'tarjetas/estilos.css' %}">
+  {% block cabecera %}{% endblock %}
+</head>
+<body class="{% block clase_body %}{% endblock %}">
+  <header class="barra">
+    <a class="marca" href="{% url 'inicio' %}">Estampas</a>
+    <nav>
+      <a href="{% url 'inicio' %}">Pedidos</a>
+      <a href="{% url 'pedido_nuevo' %}">Nuevo pedido</a>
+      <a href="{% url 'admin:index' %}">Admin</a>
+    </nav>
+  </header>
+  <main>
+    {% if messages %}
+      <ul class="mensajes">
+        {% for mensaje in messages %}<li class="mensaje {{ mensaje.tags }}">{{ mensaje }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+    {% block contenido %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

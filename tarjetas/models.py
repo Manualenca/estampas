@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
@@ -294,6 +295,12 @@ class CuadroTexto(models.Model):
         default=False,
         editable=False,
         help_text="El importador con --actualizar no cambia este rol.",
+    )
+    posicion_corregida = models.BooleanField(
+        "posición corregida a mano",
+        default=False,
+        editable=False,
+        help_text="El importador con --actualizar no cambia la posición ni el tamaño.",
     )
     sacramento = models.ForeignKey(
         Sacramento,
@@ -766,6 +773,69 @@ class EstampaSacramento(models.Model):
     @property
     def fecha_efectiva(self):
         return self.fecha or self.estampa.fecha_celebracion
+
+
+class AjusteCuadro(models.Model):
+    """Cambio a mano de un cuadro en una estampa puntual. El modelo no se toca."""
+
+    estampa = models.ForeignKey(
+        Estampa, on_delete=models.CASCADE, related_name="ajustes", verbose_name="estampa"
+    )
+    cuadro = models.ForeignKey(
+        CuadroTexto, on_delete=models.CASCADE, related_name="ajustes", verbose_name="cuadro"
+    )
+    texto_manual = models.TextField(
+        "texto a mano",
+        blank=True,
+        help_text="Reemplaza al texto automático. **texto** va en negrita.",
+    )
+    tamano_pt = models.DecimalField(
+        "tamaño (pt)",
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("2"))],
+        help_text="Vacío: el tamaño del modelo.",
+    )
+    x_mm = models.DecimalField("x (mm)", max_digits=7, decimal_places=2, null=True, blank=True)
+    y_mm = models.DecimalField("y (mm)", max_digits=7, decimal_places=2, null=True, blank=True)
+    ancho_mm = models.DecimalField(
+        "ancho (mm)", max_digits=7, decimal_places=2, null=True, blank=True
+    )
+    alto_mm = models.DecimalField(
+        "alto (mm)", max_digits=7, decimal_places=2, null=True, blank=True
+    )
+
+    CAMPOS_POSICION = ("x_mm", "y_mm", "ancho_mm", "alto_mm")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["estampa", "cuadro"], name="ajuste_unico_por_cuadro"
+            )
+        ]
+        verbose_name = "ajuste de cuadro"
+        verbose_name_plural = "ajustes de cuadro"
+
+    def __str__(self):
+        return f"{self.estampa} · {self.cuadro.get_rol_display()}"
+
+    def clean(self):
+        if self.cuadro_id and self.estampa_id and self.cuadro.variante_id != self.estampa.variante_id:
+            raise ValidationError("El cuadro no es de la variante de esta estampa.")
+
+    @property
+    def tiene_posicion(self):
+        return any(getattr(self, campo) is not None for campo in self.CAMPOS_POSICION)
+
+    def quitar_posicion(self):
+        for campo in self.CAMPOS_POSICION:
+            setattr(self, campo, None)
+
+    @property
+    def vacio(self):
+        return not self.texto_manual.strip() and self.tamano_pt is None and not self.tiene_posicion
 
 
 @receiver(m2m_changed, sender=Estampa.ninos.through)

@@ -1,0 +1,121 @@
+{% extends "tarjetas/base.html" %}
+{% load static %}
+{% block titulo %}Vista previa · {{ estampa.variante }}{% endblock %}
+{% block cabecera %}<link rel="stylesheet" href="{% url 'fuentes_css' %}">{% endblock %}
+{% block clase_body %}vista-previa{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>{{ estampa.variante }} <small>· {{ ancho }} × {{ alto }} mm · Pedido <a href="{% url 'pedido_detalle' estampa.pedido.pk %}">{{ estampa.pedido.numero_factura }}</a></small></h1>
+  <a class="boton" href="{% url 'estampa_editar' estampa.pk %}">Editar datos</a>
+</div>
+
+<div class="herramientas">
+  <button type="button" class="boton" id="contorno" aria-pressed="false">Mostrar contornos</button>
+  <label>Zoom
+    <select id="zoom">
+      <option value="1">100 %</option>
+      <option value="1.5" selected>150 %</option>
+      <option value="2">200 %</option>
+    </select>
+  </label>
+</div>
+
+{% if fuentes_faltantes %}
+  <p class="alerta">Faltan fuentes en <code>fuentes/</code>: {{ fuentes_faltantes|join:", " }}. La vista previa puede no coincidir con la impresión. Corré <code>python manage.py copiar_fuentes</code>.</p>
+{% endif %}
+{% for aviso in avisos %}<p class="alerta">{{ aviso }}</p>{% endfor %}
+<ul id="desbordes" class="desbordes" hidden></ul>
+
+<section id="mover" class="mover" hidden data-url="{% url 'posiciones' estampa.pk %}">
+  {% csrf_token %}
+  <p class="nota">Clic para elegir un cuadro, Ctrl+clic para varios. Arrastrá para mover y usá las esquinas para cambiar el tamaño.
+    Flechas: 0,5 mm (con Shift, 0,1 mm). Ctrl+Z deshace.</p>
+  <div class="fila">
+    <strong id="mover-seleccion">Ningún cuadro elegido</strong>
+    <label>X <input type="number" step="0.1" data-campo="x" disabled> mm</label>
+    <label>Y <input type="number" step="0.1" data-campo="y" disabled> mm</label>
+    <label>Ancho <input type="number" step="0.1" min="1" data-campo="ancho" disabled> mm</label>
+    <label>Alto <input type="number" step="0.1" min="1" data-campo="alto" disabled> mm</label>
+  </div>
+  <div class="fila">
+    <span class="nota">En la tarjeta:</span>
+    <button type="button" class="boton" data-alinear="centro-tarjeta-h" disabled>Centrar horizontal</button>
+    <button type="button" class="boton" data-alinear="centro-tarjeta-v" disabled>Centrar vertical</button>
+    <span class="nota">Entre sí:</span>
+    <button type="button" class="boton" data-alinear="izquierda" data-minimo="2" disabled>Izquierda</button>
+    <button type="button" class="boton" data-alinear="centro" data-minimo="2" disabled>Centro</button>
+    <button type="button" class="boton" data-alinear="derecha" data-minimo="2" disabled>Derecha</button>
+    <button type="button" class="boton" data-alinear="arriba" data-minimo="2" disabled>Arriba</button>
+    <button type="button" class="boton" data-alinear="abajo" data-minimo="2" disabled>Abajo</button>
+    <button type="button" class="boton" data-alinear="distribuir" data-minimo="3" disabled>Distribuir vertical</button>
+  </div>
+  <div class="fila">
+    <button type="button" class="boton" id="deshacer" disabled>Deshacer</button>
+    <button type="button" class="boton principal" id="guardar-estampa" disabled>Guardar en esta estampa</button>
+    <button type="button" class="boton" id="guardar-modelo" disabled>Guardar en el modelo</button>
+    <button type="button" class="boton" id="descartar" disabled>Descartar cambios</button>
+    <button type="button" class="boton" id="restablecer-seleccion" disabled>Volver a la posición del modelo</button>
+    <span id="mover-estado" class="nota"></span>
+  </div>
+</section>
+
+<div class="paginas" id="paginas">
+  {% for pagina in paginas %}
+  <figure class="pagina">
+    <figcaption>{{ pagina.etiqueta }}</figcaption>
+    <div class="tarjeta" data-ancho="{{ ancho }}" data-alto="{{ alto }}" style="width:{{ ancho }}mm;height:{{ alto }}mm;{% if pagina.fondo %}background-image:url('{{ pagina.fondo }}');{% endif %}">
+      {% for texto in pagina.textos %}
+      <div class="cuadro rol-{{ texto.cuadro.rol }}{% if texto.vacio %} vacio{% endif %}{% if texto.manual %} manual{% endif %}"
+           id="caja-{{ texto.cuadro.pk }}" data-cuadro="{{ texto.cuadro.pk }}"
+           data-rol="{{ texto.cuadro.get_rol_display }}" data-base="{{ texto.base_txt }}"
+           data-escala="{{ texto.escala_txt }}"
+           data-x="{{ texto.geometria.x_mm }}" data-y="{{ texto.geometria.y_mm }}"
+           data-ancho="{{ texto.geometria.ancho_mm }}" data-alto="{{ texto.geometria.alto_mm }}"
+           data-modelo-x="{{ texto.geometria_modelo.x_mm }}" data-modelo-y="{{ texto.geometria_modelo.y_mm }}"
+           data-modelo-ancho="{{ texto.geometria_modelo.ancho_mm }}" data-modelo-alto="{{ texto.geometria_modelo.alto_mm }}"
+           style="{{ texto.css }}">
+        <div class="contenido">{% for linea in texto.lineas %}<div class="linea" style="{{ linea.css }}">{% for s in linea.segmentos %}{% if s.negrita %}<b>{{ s.texto }}</b>{% else %}{{ s.texto }}{% endif %}{% endfor %}</div>{% endfor %}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </figure>
+  {% endfor %}
+</div>
+
+<h2>Textos de cada cuadro</h2>
+<p class="nota">Lo que escribas acá vale solo para esta estampa. Usá <code>**texto**</code> para negrita y un renglón por línea.</p>
+<div class="editores">
+  {% for texto in textos %}
+  <section class="editor" id="cuadro-{{ texto.cuadro.pk }}" data-cuadro="{{ texto.cuadro.pk }}">
+    <header>
+      <strong>{{ texto.cuadro.get_rol_display }}</strong>
+      <span class="nota">{{ texto.cuadro.get_pagina_display }} · {{ texto.cuadro.fuente }} {{ texto.tamano_txt }} pt</span>
+      {% if texto.manual %}<span class="etiqueta">texto a mano</span>{% endif %}
+      {% if texto.ajustado %}<span class="etiqueta">tamaño ajustado</span>{% endif %}
+      {% if texto.posicion_ajustada %}<span class="etiqueta">posición propia</span>{% endif %}
+      <span class="etiqueta peligro" data-aviso-desborde hidden>no entra</span>
+    </header>
+    {% if texto.cuadro.rol == "sin_asignar" and not texto.manual %}
+      <p class="nota">Cuadro sin asignar: no se imprime salvo que le escribas un texto.</p>
+    {% endif %}
+    <form method="post" action="{% url 'ajuste_cuadro' estampa.pk texto.cuadro.pk %}">
+      {% csrf_token %}
+      <textarea name="texto" rows="{{ texto.lineas|length|add:1 }}">{{ texto.texto_editable }}</textarea>
+      <div class="acciones">
+        <button type="submit" name="accion" value="texto" class="boton">Guardar texto</button>
+        {% if texto.manual %}<button type="submit" name="accion" value="texto_auto" class="boton">Volver al texto automático</button>{% endif %}
+      </div>
+    </form>
+    <form method="post" action="{% url 'ajuste_cuadro' estampa.pk texto.cuadro.pk %}" class="tamano">
+      {% csrf_token %}
+      <label>Tamaño <input type="number" name="tamano" step="0.25" min="2" max="200" value="{{ texto.tamano_txt }}"> pt</label>
+      <button type="submit" name="accion" value="tamano" class="boton">Guardar tamaño</button>
+      <button type="button" class="boton" data-achicar hidden>Achicar hasta que entre</button>
+      {% if texto.ajustado %}<button type="submit" name="accion" value="tamano_auto" class="boton">Tamaño del modelo ({{ texto.base_txt }} pt)</button>{% endif %}
+    </form>
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% static 'tarjetas/vista_previa.js' %}"></script>
+<script src="{% static 'tarjetas/mover_cuadros.js' %}"></script>{% endblock %}

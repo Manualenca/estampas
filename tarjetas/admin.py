@@ -35,7 +35,7 @@ class SoloLecturaMixin:
 
 
 class CuadroTextoForm(forms.ModelForm):
-    """Recuerda qué roles se corrigieron a mano para que el importador los respete."""
+    """Recuerda qué roles y posiciones se corrigieron a mano para que el importador los respete."""
 
     class Meta:
         model = CuadroTexto
@@ -44,6 +44,8 @@ class CuadroTextoForm(forms.ModelForm):
     def save(self, commit=True):
         if self.instance.pk and "rol" in self.changed_data:
             self.instance.rol_corregido = True
+        if self.instance.pk and set(self.changed_data) & {"x_mm", "y_mm", "ancho_mm", "alto_mm"}:
+            self.instance.posicion_corregida = True
         return super().save(commit)
 
 
@@ -165,7 +167,7 @@ class CuadroTextoAdmin(admin.ModelAdmin):
     list_filter = ("rol", "pagina", "rotacion", "variante__modelo__tipo", "fuente")
     search_fields = ("variante__modelo__codigo", "variante__nombre", "fuente")
     autocomplete_fields = ("variante",)
-    readonly_fields = ("rol_corregido",)
+    readonly_fields = ("rol_corregido", "posicion_corregida")
     inlines = [EstiloLineaInline]
 
     def get_changelist_form(self, request, **kwargs):

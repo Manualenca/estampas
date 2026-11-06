@@ -1,0 +1,64 @@
+{% extends "tarjetas/base.html" %}
+{% load static %}
+{% block titulo %}{% if estampa.pk %}Editar estampa{% else %}Nueva estampa{% endif %} · Estampas{% endblock %}
+{% block contenido %}
+<h1>{% if estampa.pk %}Editar estampa{% else %}Nueva estampa{% endif %} <small>· Pedido {{ pedido.numero_factura }}</small></h1>
+<form method="post" novalidate id="form-estampa">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+
+  <fieldset class="grilla">
+    <legend>Modelo y chicos</legend>
+    <label class="campo ancho"><span>{{ form.variante.label }}</span>{{ form.variante }}{{ form.variante.errors }}</label>
+    <div class="campo ancho"><span>{{ form.ninos.label }} (1 o 2)</span>{{ form.ninos }}{{ form.ninos.errors }}</div>
+    <label class="campo"><span>{{ form.cantidad.label }}</span>{{ form.cantidad }}{{ form.cantidad.errors }}</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Sacramentos</legend>
+    {{ form.sacramentos.errors }}
+    {% for sacramento, elegido, fecha, hora in form.campos_de_sacramento %}
+      <div class="sacramento" data-codigo="{{ sacramento.codigo }}">
+        <label class="casilla-linea">
+          <input type="checkbox" name="{{ form.sacramentos.html_name }}" value="{{ sacramento.pk }}"
+                 data-codigo="{{ sacramento.codigo }}"{% if elegido %} checked{% endif %}>
+          {{ sacramento.nombre }}
+        </label>
+        <span class="propios">
+          <label>Fecha propia {{ fecha }}</label>
+          <label>Hora {{ hora }}</label>
+          <span class="nota">Solo si es distinta de la fecha de celebración.</span>
+          {{ fecha.errors }}{{ hora.errors }}
+        </span>
+      </div>
+    {% endfor %}
+  </fieldset>
+
+  <fieldset class="grilla">
+    <legend>Celebración</legend>
+    <label class="campo"><span>{{ form.fecha_celebracion.label }}</span>{{ form.fecha_celebracion }}{{ form.fecha_celebracion.errors }}</label>
+    <label class="campo ancho"><span>{{ form.parroquia.label }}</span>{{ form.parroquia }}{{ form.parroquia.errors }}</label>
+    <label class="campo"><span>{{ form.articulo_parroquia.label }}</span>{{ form.articulo_parroquia }}
+      <small class="ayuda">{{ form.articulo_parroquia.help_text }}</small>{{ form.articulo_parroquia.errors }}</label>
+    <label class="campo ancho"><span>{{ form.localidad.label }}</span>{{ form.localidad }}{{ form.localidad.errors }}</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Oración</legend>
+    <div class="radios">{{ form.modo_oracion }}</div>
+    <div id="oracion-banco" class="modo">
+      <label class="casilla-linea"><input type="checkbox" id="ver-todas"> Ver todas las oraciones</label>
+      {{ form.oracion }}{{ form.oracion.errors }}
+      <p class="nota" id="sin-afines" hidden>No hay oraciones cargadas para los sacramentos elegidos: se muestran todas.</p>
+    </div>
+    <div id="oracion-libre" class="modo">{{ form.oracion_libre }}{{ form.oracion_libre.errors }}</div>
+    <p id="oracion-ninguna" class="modo nota">Si el modelo tiene una variante sin oración, se usa esa; si no, el cuadro queda vacío.</p>
+  </fieldset>
+
+  <div class="acciones">
+    <button type="submit" class="boton principal">Guardar y ver la vista previa</button>
+    <a class="boton" href="{% url 'pedido_detalle' pedido.pk %}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}<script src="{% static 'tarjetas/estampa_form.js' %}"></script>{% endblock %}

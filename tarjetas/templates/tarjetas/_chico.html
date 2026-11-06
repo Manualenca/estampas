@@ -1,0 +1,13 @@
+<div class="chico grilla">
+  {% for campo in chico.hidden_fields %}{{ campo }}{% endfor %}
+  {{ chico.non_field_errors }}
+  {% for campo in chico.visible_fields %}
+    {% if campo.name == "DELETE" %}
+      {% if chico.instance.pk %}<label class="campo casilla"><span>Quitar</span>{{ campo }}</label>{% endif %}
+    {% else %}
+      <label class="campo{% if campo.name == 'nombre' %} ancho{% endif %}{% if campo.name == 'lleva_diploma' %} casilla{% endif %}">
+        <span>{{ campo.label }}</span>{{ campo }}{{ campo.errors }}
+      </label>
+    {% endif %}
+  {% endfor %}
+</div>

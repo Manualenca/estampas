@@ -1,0 +1,47 @@
+{% extends "tarjetas/base.html" %}
+{% block titulo %}{% if pedido.pk %}Editar pedido{% else %}Nuevo pedido{% endif %} · Estampas{% endblock %}
+{% block contenido %}
+<h1>{% if pedido.pk %}Pedido {{ pedido.numero_factura }}{% else %}Nuevo pedido{% endif %}</h1>
+<form method="post" novalidate>
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <fieldset class="grilla">
+    <legend>Pedido</legend>
+    {% for campo in form %}
+      <label class="campo{% if campo.name == 'observaciones' %} ancho{% endif %}">
+        <span>{{ campo.label }}</span>{{ campo }}{{ campo.errors }}
+      </label>
+    {% endfor %}
+  </fieldset>
+
+  <fieldset>
+    <legend>Chicos</legend>
+    {{ chicos.management_form }}
+    {{ chicos.non_form_errors }}
+    <div id="chicos">
+      {% for chico in chicos %}
+        {% include "tarjetas/_chico.html" with chico=chico %}
+      {% endfor %}
+    </div>
+    <template id="chico-vacio">
+      {% include "tarjetas/_chico.html" with chico=chicos.empty_form %}
+    </template>
+    <button type="button" class="boton" id="agregar-chico">Agregar chico</button>
+  </fieldset>
+
+  <div class="acciones">
+    <button type="submit" class="boton principal">Guardar</button>
+    <a class="boton" href="{% if pedido.pk %}{% url 'pedido_detalle' pedido.pk %}{% else %}{% url 'inicio' %}{% endif %}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.getElementById("agregar-chico").addEventListener("click", () => {
+    const total = document.getElementById("id_ninos-TOTAL_FORMS");
+    const html = document.getElementById("chico-vacio").innerHTML.replace(/__prefix__/g, total.value);
+    document.getElementById("chicos").insertAdjacentHTML("beforeend", html);
+    total.value = Number(total.value) + 1;
+  });
+</script>
+{% endblock %}

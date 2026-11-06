@@ -21,13 +21,21 @@ PT_A_MM = 25.4 / 72
 INSET_X_MM = 2.54
 INSET_Y_MM = 1.27
 
-# Alto de renglón relativo al tamaño, para estimar párrafos sin medir la fuente.
+# Alto de renglón "sencillo" relativo al tamaño, medido en los PDF que genera Word.
 ALTO_LINEA_FUENTE = {
-    "abadi": 1.05,
+    "abadi": 1.07,
+    "algerian": 1.33,
+    "arial narrow": 1.15,
+    "brush script mt": 1.33,
     "calibri": 1.22,
+    "cordia new": 1.235,
     "curlz mt": 1.33,
-    "harrington": 1.17,
+    "edwardian script itc": 1.18,
+    "french script mt": 1.14,
+    "georgia": 1.13,
+    "harrington": 1.18,
     "monotype corsiva": 1.12,
+    "times new roman": 1.15,
 }
 ALTO_LINEA_DEFECTO = 1.20
 

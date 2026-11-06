@@ -1,0 +1,68 @@
+{% extends "tarjetas/base.html" %}
+{% block titulo %}Pedido {{ pedido.numero_factura }} · Estampas{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <h1>Pedido {{ pedido.numero_factura }}</h1>
+  <a class="boton" href="{% url 'pedido_editar' pedido.pk %}">Editar pedido y chicos</a>
+</div>
+<dl class="datos">
+  <dt>SAPP</dt><dd>{{ pedido.numero_sapp }}</dd>
+  <dt>Entrega</dt><dd>{{ pedido.fecha_entrega|date:"d/m/Y" }}</dd>
+  <dt>Estado</dt><dd>{{ pedido.get_estado_display }}</dd>
+  {% if pedido.observaciones %}<dt>Observaciones</dt><dd>{{ pedido.observaciones|linebreaksbr }}</dd>{% endif %}
+</dl>
+
+<h2>Chicos</h2>
+{% if ninos %}
+<table class="tabla">
+  <thead><tr><th>Nombre</th><th>Género</th><th>Padrinos</th><th>Padres</th><th>Diploma</th></tr></thead>
+  <tbody>
+    {% for nino in ninos %}
+    <tr>
+      <td>{{ nino.nombre }}</td>
+      <td>{{ nino.get_genero_display|default:"–" }}</td>
+      <td>{{ nino.padrino|default:"" }}{% if nino.padrino and nino.madrina %} · {% endif %}{{ nino.madrina|default:"" }}</td>
+      <td>{{ nino.padre|default:"" }}{% if nino.padre and nino.madre %} · {% endif %}{{ nino.madre|default:"" }}</td>
+      <td>
+        {% if not nino.lleva_diploma %}No lleva
+        {% elif nino.diploma_elegido %}{{ nino.diploma_elegido.modelo.codigo }}{% if not nino.diploma %} <span class="nota">(automático)</span>{% endif %}
+        {% else %}<span class="alerta">Sin diploma: cargá el género o elegilo a mano</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="vacio">Sin chicos. Cargalos con «Editar pedido y chicos».</p>
+{% endif %}
+
+<div class="encabezado">
+  <h2>Estampas</h2>
+  {% if ninos %}<a class="boton principal" href="{% url 'estampa_nueva' pedido.pk %}">Agregar estampa</a>{% endif %}
+</div>
+{% if estampas %}
+<table class="tabla">
+  <thead><tr><th>Modelo</th><th>Sacramentos</th><th>Chicos</th><th>Celebración</th><th>Cantidad</th><th></th></tr></thead>
+  <tbody>
+    {% for estampa in estampas %}
+    <tr>
+      <td><a href="{% url 'vista_previa' estampa.pk %}">{{ estampa.variante }}</a></td>
+      <td>{% for r in estampa.estampasacramento_set.all %}{{ r.sacramento.nombre }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+      <td>{% for n in estampa.ninos.all %}{{ n.nombre }}{% if not forloop.last %} y {% endif %}{% endfor %}</td>
+      <td>{{ estampa.fecha_celebracion|date:"d/m/Y" }} · {{ estampa.parroquia }}</td>
+      <td>{{ estampa.cantidad }}</td>
+      <td class="acciones-fila">
+        <a href="{% url 'vista_previa' estampa.pk %}">Vista previa</a>
+        <a href="{% url 'estampa_editar' estampa.pk %}">Editar</a>
+        <form method="post" action="{% url 'estampa_borrar' estampa.pk %}" onsubmit="return confirm('¿Borrar esta estampa?')">
+          {% csrf_token %}<button type="submit" class="enlace peligro">Borrar</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="vacio">Sin estampas.</p>
+{% endif %}
+{% endblock %}
